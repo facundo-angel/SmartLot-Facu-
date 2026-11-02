@@ -1,0 +1,76 @@
+/* Estructura compartida por los headers de admin, superadmin, empleado y dueño de garage. */
+
+.header,
+.header-superadmin,
+.duenio-header {
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  z-index: 1000;
+  box-sizing: border-box;
+}
+
+.header-left,
+.header-superadmin-left,
+.duenio-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.header-superadmin-left {
+  gap: 16px;
+}
+
+.header-right,
+.header-superadmin-right,
+.duenio-header-right {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+/* Tema claro compartido por admin y empleado. */
+.header {
+  background: white;
+  border-bottom: 1px solid #ddd;
+  position: fixed;
+  top: 0;
+  left: 0%;
+  right: 0;
+}
+
+.header-spacer,
+.duenio-header-spacer {
+  height: 70px;
+  flex: 0 0 70px;
+}
+
+.titulo-header {
+  font-size: 28px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0;
+}
+
+/* El logo de admin, empleado y dueño comparte medidas; superadmin usa su propio tema. */
+.logo-smartlot,
+.duenio-logo-smartlot {
+  width: 150px;
+  height: 20% !important;
+  background: transparent;
+  border-color: transparent;
+}
+
+.logo-smartlot img,
+.duenio-logo-smartlot img {
+  width: 150px;
+  height: 20% !important;
+  object-fit: contain;
+  margin-left: -19%;
+  background-color: transparent;
+}

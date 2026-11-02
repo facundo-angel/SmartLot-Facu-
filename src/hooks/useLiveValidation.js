@@ -1,47 +1,33 @@
 import { useState, useCallback, useMemo } from 'react';
+import { buildConditions } from '../helpers/validation';
 
 export default function useLiveValidation(formData, schema) {
   const [touched, setTouched] = useState({});
 
-  const evaluate = useCallback((data) => {
-    const errors = {};
-    const passed = {};
+  // Las condiciones se calculan con el mismo constructor que usan los
+  // formularios, así FieldValidation recibe siempre [{ label, met }].
+  const conditions = useMemo(() => {
+    const result = {};
+    for (const field of Object.keys(schema)) {
+      result[field] = buildConditions(schema, field, formData);
+    }
+    return result;
+  }, [formData, schema]);
 
-    for (const [field, rules] of Object.entries(schema)) {
-      const value = data[field];
-      const fieldErrors = [];
-      const fieldPassed = [];
+  const { errors, passed } = useMemo(() => {
+    const nextErrors = {};
+    const nextPassed = {};
 
-      for (const item of rules) {
-        let ruleFn;
-        let message;
-        if (typeof item === 'function') {
-          const result = item(value);
-          ruleFn = result.rule;
-          message = result.message;
-        } else {
-          ruleFn = item.rule;
-          message = item.message;
-        }
-        if (ruleFn(value)) {
-          fieldPassed.push(message);
-        } else {
-          fieldErrors.push(message);
-        }
-      }
+    for (const [field, fieldConditions] of Object.entries(conditions)) {
+      const fieldErrors = fieldConditions.filter((condition) => !condition.met).map((condition) => condition.label);
+      const fieldPassed = fieldConditions.filter((condition) => condition.met).map((condition) => condition.label);
 
-      if (fieldErrors.length > 0) {
-        errors[field] = fieldErrors;
-      }
-      if (fieldPassed.length > 0) {
-        passed[field] = fieldPassed;
-      }
+      if (fieldErrors.length > 0) nextErrors[field] = fieldErrors;
+      if (fieldPassed.length > 0) nextPassed[field] = fieldPassed;
     }
 
-    return { errors, passed };
-  }, [schema]);
-
-  const { errors, passed } = useMemo(() => evaluate(formData), [formData, evaluate]);
+    return { errors: nextErrors, passed: nextPassed };
+  }, [conditions]);
 
   const isValid = useMemo(() => Object.keys(errors).length === 0, [errors]);
 
@@ -77,6 +63,7 @@ export default function useLiveValidation(formData, schema) {
   return {
     errors,
     passed,
+    conditions,
     isValid,
     touched,
     touch,

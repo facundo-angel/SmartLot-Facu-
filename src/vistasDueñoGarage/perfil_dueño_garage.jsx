@@ -14,6 +14,7 @@ import apiClient from "../servicies/apiClient";
 import { UsuariosGetById } from "../servicies/API_Usuario";
 import { GaragesGetAll } from "../servicies/API_Garage";
 import useLiveValidation from "../hooks/useLiveValidation";
+import { buildConditions } from "../helpers/validation";
 import FieldValidation from "../components/FieldValidation";
 import "./perfil_dueño_garage.css";
 
@@ -59,16 +60,6 @@ export default function PerfilDueñoGarage() {
   const { isValid, touched, getFieldProps } = useLiveValidation(personalData, validationSchema);
   const telefonoField = getFieldProps("telefono", setPersonalData);
   const contraseñaField = getFieldProps("contraseña", setPersonalData);
-
-  const buildConditions = (fieldName) => {
-    if (!validationSchema[fieldName]) return [];
-    const value = personalData[fieldName];
-    return validationSchema[fieldName].map((item) => {
-      const ruleFn = item.rule;
-      const message = item.message;
-      return { label: message, met: ruleFn(value) };
-    });
-  };
 
   const isDirty = useMemo(() => (
     personalData.nombre !== originalPersonalData.nombre ||
@@ -400,7 +391,7 @@ export default function PerfilDueñoGarage() {
                   onBlur={telefonoField.onBlur}
                   autoComplete="off"
                 />
-                <FieldValidation conditions={buildConditions("telefono")} isTouched={touched.telefono} />
+                <FieldValidation conditions={buildConditions(validationSchema, "telefono", personalData)} isTouched={touched.telefono} />
               </div>
             </div>
           </section>
@@ -426,7 +417,7 @@ export default function PerfilDueñoGarage() {
                 onBlur={contraseñaField.onBlur}
                 autoComplete="new-password"
               />
-              <FieldValidation conditions={buildConditions("contraseña")} isTouched={touched.contraseña} />
+              <FieldValidation conditions={buildConditions(validationSchema, "contraseña", personalData)} isTouched={touched.contraseña} />
             </div>
           </section>
 

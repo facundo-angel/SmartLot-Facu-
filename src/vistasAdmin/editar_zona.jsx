@@ -1,24 +1,17 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Autocomplete } from '@react-google-maps/api';
 import "./editar_zona.css";
-import Header from "../componentesAdmin/header_admin";
+import HeaderSuperadmin from "../componentesSuperadmin/header_superadmin";
 import {
   ArrowLeft,
-  Star,
-  CarFront,
-  Minus,
   Plus,
-  Building2,
   MapPin,
-  Clock,
-  Layers,
   CheckCircle2,
   WifiOff,
   Save,
   X,
   PersonStanding,
   ShieldAlert,
-  Trash2, 
+  Trash2,
   Mail
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -28,14 +21,14 @@ import { DIAS_SEMANA } from "../helpers/diasSemana";
 import ToastUndo from "../componentesShared/ToastUndo";
 import EmptyState from "../componentesCompartidos/EmptyState";
 import BotonGenerico from "../componentesAdmin/boton_generico";
-import SelectorDiasOperativos from "../componentesAdmin/selector_dias_operativos";
+import FormularioZona from "../componentesAdmin/formulario_zona";
+import FormularioCapacidad from "../componentesAdmin/formulario_capacidad";
 import { GaragesUpdate } from "../servicies/API_Garage";
 import { UsuariosGetByGarage, UsuariosPatchEstado } from '../servicies/API_Usuario';
 import useLiveValidation from "../hooks/useLiveValidation";
-import FieldValidation from "../components/FieldValidation";
+import { buildConditions } from "../helpers/validation";
 import FormularioPreciosGarage from "../componentesCompartidos/FormularioPreciosGarage";
 import { buildGaragePricesPayload } from "../helpers/prices";
-import { useGoogleMaps } from "../contexts/useGoogleMaps";
 
 const parseEstadoBool = (estado) => {
   if (estado === 1 || estado === true || estado === "1" || estado === "activo" || estado === "Abierto" || estado === "abierto" || estado === "true") return true;
@@ -57,7 +50,50 @@ const obtenerHoraGarage = (garage, claves) => {
   return "";
 };
 
+// Normaliza los días guardados al identificador que usa el selector operativo,
+// aceptando arreglos o el formato Postgres "{Lunes,Miercoles}".
+const normalizarDias = (dias) => {
+  let diasArray = dias;
+  if (typeof diasArray === 'string') {
+    diasArray = diasArray.replace(/[{}]/g, '').split(',').filter(Boolean);
+  }
+  if (Array.isArray(diasArray) && diasArray.length > 0) {
+    return diasArray.map(d => {
+      const found = DIAS_SEMANA.find(dia => dia.api === d || dia.display === d);
+      return found ? found.api : d;
+    }).filter(Boolean);
+  }
+  return [];
+};
 
+const obtenerIdGarage = (garage) => garage?.id_garage ?? garage?.idGarage ?? garage?.id ?? garage?._id;
+
+const construirFormulario = (garage) => ({
+  nombre: garage?.nombre || '',
+  piso: garage?.piso ?? '',
+  ubicacion: garage?.ubicacion || '',
+  hora_apertura: obtenerHoraGarage(garage, ['hora_apertura', 'horaApertura', 'apertura']),
+  hora_cierre: obtenerHoraGarage(garage, ['hora_cierre', 'horaCierre', 'cierre']),
+  capacidad_reservas: Number(garage?.capacidad_reservas || 0),
+  capacidad_para_no_reservas: Number(garage?.capacidad_para_no_reservas || 0),
+  dias: normalizarDias(garage?.dias),
+  precio_pickup: garage?.precio_pickup ?? '',
+  precio_auto: garage?.precio_auto ?? '',
+  precio_moto: garage?.precio_moto ?? '',
+});
+
+const CAMPOS_COMPARABLES = [
+  'nombre',
+  'piso',
+  'ubicacion',
+  'hora_apertura',
+  'hora_cierre',
+  'capacidad_reservas',
+  'capacidad_para_no_reservas',
+  'precio_pickup',
+  'precio_auto',
+  'precio_moto',
+];
 
 function EditarZona() {
   const [usuarios, setUsuarios] = useState([]);
@@ -103,49 +139,11 @@ function EditarZona() {
     }
   };
 
-  const obtenerIdGarage = (garage) => garage?.id_garage ?? garage?.idGarage ?? garage?.id ?? garage?._id;
+  const formInicial = useMemo(() => construirFormulario(garageData), [garageData]);
+  const estadoInicial = useMemo(() => parseEstadoBool(garageData?.estado), [garageData]);
 
-  const [estadoActivo, setEstadoActivo] = useState(() => {
-    return garageData ? parseEstadoBool(garageData.estado) : true;
-  });
-  const [capacidadReservas, setCapacidadReservas] = useState(() => {
-    return garageData ? Number(garageData.capacidad_reservas || 0) : 0;
-  });
-  const [capacidadNoReservas, setCapacidadNoReservas] = useState(() => {
-    return garageData ? Number(garageData.capacidad_para_no_reservas || 0) : 0;
-  });
-  const [nombreGarage, setNombreGarage] = useState(() => {
-    return garageData ? (garageData.nombre || '') : 'Garage B';
-  });
-  const [piso, setPiso] = useState(() => {
-    return garageData ? (garageData.piso || '') : 'Piso 2';
-  });
-  const [ubicacion, setUbicacion] = useState(() => {
-    return garageData ? (garageData.ubicacion || '') : '';
-  });
-  const [horaApertura, setHoraApertura] = useState(() => {
-    return garageData ? obtenerHoraGarage(garageData, ['hora_apertura', 'horaApertura', 'apertura']) : '';
-  });
-  const [horaCierre, setHoraCierre] = useState(() => {
-    return garageData ? obtenerHoraGarage(garageData, ['hora_cierre', 'horaCierre', 'cierre']) : '';
-  });
-  const [es24Horas, setEs24Horas] = useState(false);
-  const [precios, setPrecios] = useState({ precio_pickup: garageData?.precio_pickup ?? '', precio_auto: garageData?.precio_auto ?? '', precio_moto: garageData?.precio_moto ?? '' });
-
-  const [diasSeleccionados, setDiasSeleccionados] = useState(() => {
-    let diasArray = garageData?.dias;
-    if (typeof diasArray === 'string') {
-      diasArray = diasArray.replace(/[{}]/g, '').split(',').filter(Boolean);
-    }
-    if (Array.isArray(diasArray) && diasArray.length > 0) {
-      return diasArray.map(d => {
-        const found = DIAS_SEMANA.find(dia => dia.api === d || dia.display === d);
-        return found ? found.api : d;
-      }).filter(Boolean);
-    }
-    return [];
-  });
-
+  const [formData, setFormData] = useState(() => construirFormulario(garageData));
+  const [estadoActivo, setEstadoActivo] = useState(estadoInicial);
   const [coordenadas, setCoordenadas] = useState(() => {
     if (garageData?.latitud || garageData?.longitud) {
       return { lat: garageData.latitud ?? null, lng: garageData.longitud ?? null, direccion: garageData.ubicacion || '' };
@@ -154,37 +152,13 @@ function EditarZona() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const capacidadReservas = Number(formData.capacidad_reservas) || 0;
+  const capacidadNoReservas = Number(formData.capacidad_para_no_reservas) || 0;
   const capacidad = capacidadReservas + capacidadNoReservas;
 
-  const { isLoaded, loadError } = useGoogleMaps();
-  if (loadError) console.warn('editar_zona: Google Maps no cargó:', loadError);
-
-  const autocompleteRef = useRef(null);
-
-  const handlePlaceChanged = () => {
-    const place = autocompleteRef.current.getPlace();
-    if (place?.geometry) {
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
-      const direccion = place.formatted_address || '';
-      setUbicacion(direccion);
-      setCoordenadas({ lat, lng, direccion });
-    }
-  };
-
-  const formDataVal = {
-    nombreGarage,
-    piso,
-    ubicacion,
-    horaApertura,
-    horaCierre,
-    capacidadReservas,
-    capacidadNoReservas,
-    diasSeleccionados,
-  };
-
   const getSchema = () => ({
-    nombreGarage: [
+    nombre: [
       { rule: (v) => v?.trim().length > 0, message: 'Requerido' },
       { rule: (v) => v?.trim().length >= 3, message: 'Mínimo 3 caracteres' },
     ],
@@ -196,68 +170,60 @@ function EditarZona() {
       { rule: (v) => v?.trim().length >= 5, message: 'Mínimo 5 caracteres' },
       () => ({ rule: () => coordenadas.lat !== null && coordenadas.lng !== null, message: 'Selecciona una ubicación válida del mapa' }),
     ],
-    horaApertura: [
+    hora_apertura: [
       { rule: (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || '')), message: 'Formato HH:MM requerido' },
     ],
-    horaCierre: [
+    hora_cierre: [
       { rule: (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || '')), message: 'Formato HH:MM requerido' },
-      () => ({ rule: () => !formDataVal.horaApertura || !formDataVal.horaCierre || formDataVal.horaApertura < formDataVal.horaCierre, message: 'Apertura debe ser anterior a cierre' }),
+      () => ({ rule: () => !formData.hora_apertura || !formData.hora_cierre || formData.hora_apertura < formData.hora_cierre, message: 'Apertura debe ser anterior a cierre' }),
     ],
-    capacidadReservas: [
-      { rule: (v) => Number.isInteger(v) && v >= 0, message: 'Número entero ≥ 0' },
+    capacidad_reservas: [
+      { rule: (v) => Number.isInteger(Number(v)) && Number(v) >= 0, message: 'Número entero ≥ 0' },
     ],
-    capacidadNoReservas: [
-      { rule: (v) => Number.isInteger(v) && v >= 0, message: 'Número entero ≥ 0' },
+    capacidad_para_no_reservas: [
+      { rule: (v) => Number.isInteger(Number(v)) && Number(v) >= 0, message: 'Número entero ≥ 0' },
     ],
-    diasSeleccionados: [
+    dias: [
       { rule: (v) => Array.isArray(v) && v.length > 0, message: 'Selecciona al menos un día' },
     ],
   });
 
-  const { isValid, touched, touch, touchAll } = useLiveValidation(formDataVal, getSchema());
+  const { isValid, touched, touch, touchAll, handleChangeWithTouch } = useLiveValidation(formData, getSchema());
 
-  const buildConditions = (fieldName) => {
-    const schema = getSchema();
-    if (!schema[fieldName]) return [];
-    const value = formDataVal[fieldName];
-    return schema[fieldName].map((item) => {
-      if (typeof item === 'function') {
-        const result = item(value);
-        return { label: result.message, met: result.rule(value) };
-      }
-      return { label: item.message, met: item.rule(value) };
-    });
+  const fieldsValidation = {};
+  Object.keys(getSchema()).forEach((field) => {
+    fieldsValidation[field] = {
+      conditions: buildConditions(getSchema(), field, formData),
+      isTouched: touched[field],
+    };
+  });
+
+  // Los formularios compartidos pueden notificar un campo suelto o un objeto
+  // completo (por ejemplo, capacidad), así que se soportan ambos formatos.
+  const handleChange = (field, value) => {
+    if (typeof field === "object" && field !== null) {
+      const camposCambiados = Object.keys(field).filter((key) => field[key] !== formData[key]);
+      setFormData((prev) => ({ ...prev, ...field }));
+      camposCambiados.forEach(touch);
+    } else {
+      handleChangeWithTouch(field, value, setFormData);
+    }
   };
 
   // --- LÓGICA DE DETECCIÓN DE CAMBIOS (DIRTY STATE) ---
   const isDirty = useMemo(() => {
     if (!garageData) return false;
-    
-    const origNombre = garageData.nombre || '';
-    const origPiso = garageData.piso !== undefined && garageData.piso !== null ? garageData.piso.toString() : '';
-    const origUbicacion = garageData.ubicacion || '';
-    const origHoraApertura = obtenerHoraGarage(garageData, ['hora_apertura', 'horaApertura', 'apertura']);
-    const origHoraCierre = obtenerHoraGarage(garageData, ['hora_cierre', 'horaCierre', 'cierre']);
-    const origEstado = parseEstadoBool(garageData.estado);
-    const origCapReservas = Number(garageData.capacidad_reservas || 0);
-    const origCapNoReservas = Number(garageData.capacidad_para_no_reservas || 0);
-    const origDias = Array.isArray(garageData.dias) ? [...garageData.dias].sort() : [];
+
+    const cambioEnCampos = CAMPOS_COMPARABLES.some(
+      (campo) => String(formData[campo] ?? '') !== String(formInicial[campo] ?? '')
+    );
 
     return (
-      nombreGarage !== origNombre ||
-      piso.toString() !== origPiso ||
-      ubicacion !== origUbicacion ||
-      horaApertura !== origHoraApertura ||
-      horaCierre !== origHoraCierre ||
-      estadoActivo !== origEstado ||
-      capacidadReservas !== origCapReservas ||
-      capacidadNoReservas !== origCapNoReservas ||
-      [...diasSeleccionados].sort().join(',') !== origDias.join(',')
-      || precios.precio_pickup !== (garageData.precio_pickup ?? '')
-      || precios.precio_auto !== (garageData.precio_auto ?? '')
-      || precios.precio_moto !== (garageData.precio_moto ?? '')
+      cambioEnCampos ||
+      estadoActivo !== estadoInicial ||
+      [...formData.dias].sort().join(',') !== [...formInicial.dias].sort().join(',')
     );
-  }, [nombreGarage, piso, ubicacion, horaApertura, horaCierre, estadoActivo, capacidadReservas, capacidadNoReservas, diasSeleccionados, garageData, precios]);
+  }, [formData, formInicial, estadoActivo, estadoInicial, garageData]);
 
   // Prevenir cierre accidental de pestaña o recarga del navegador
   useEffect(() => {
@@ -274,7 +240,7 @@ function EditarZona() {
 
   useEffect(() => {
     if (!garageData) {
-      navigate("/gestion_garages", { replace: true });
+      navigate("/superadmin/gestion_garages", { replace: true });
     }
   }, [garageData, navigate]);
 
@@ -287,7 +253,7 @@ function EditarZona() {
 
       setCargandoGarajistas(true);
       const response = await UsuariosGetByGarage(garageId);
-      
+
       if (!estaMontado) return;
 
       if (response.respuesta) {
@@ -328,7 +294,7 @@ function EditarZona() {
 
       if (!result.isConfirmed) return; // Se queda en la vista
     }
-    navigate("/gestion_garages");
+    navigate("/superadmin/gestion_garages");
   };
 
   const guardarCambios = async (e) => {
@@ -345,19 +311,19 @@ function EditarZona() {
 
     try {
       const payload = {
-         nombre: nombreGarage.trim(),
-         piso: String(piso ?? '').trim(),
-         ubicacion: ubicacion.trim(),
-         latitud: coordenadas.lat ?? null,
-         longitud: coordenadas.lng ?? null,
-         hora_apertura: horaApertura,
-         hora_cierre: horaCierre,
-         estado: estadoActivo,
-         capacidad: Number(capacidad),
-         capacidad_reservas: Number(capacidadReservas),
-         capacidad_para_no_reservas: Number(capacidadNoReservas),
-         dias: diasSeleccionados
-         ,...buildGaragePricesPayload(precios)
+        nombre: formData.nombre.trim(),
+        piso: String(formData.piso ?? '').trim(),
+        ubicacion: formData.ubicacion.trim(),
+        latitud: coordenadas.lat ?? null,
+        longitud: coordenadas.lng ?? null,
+        hora_apertura: formData.hora_apertura,
+        hora_cierre: formData.hora_cierre,
+        estado: estadoActivo,
+        capacidad: Number(capacidad),
+        capacidad_reservas: Number(capacidadReservas),
+        capacidad_para_no_reservas: Number(capacidadNoReservas),
+        dias: formData.dias,
+        ...buildGaragePricesPayload(formData)
       };
 
       const id = obtenerIdGarage(garageData);
@@ -373,7 +339,7 @@ function EditarZona() {
           showConfirmButton: false,
           zIndex: Z_INDEX.SWAL_DIALOG,
         });
-        navigate("/gestion_garages", { replace: true });
+        navigate("/superadmin/gestion_garages", { replace: true });
       } else {
         const errorMsg = response.datos?.message || response.datos || 'Error desconocido al actualizar en la BD.';
         const limpio = typeof errorMsg === 'string' ? errorMsg.replace(/\b\d{2,}\b/g, "").replace(/\s+/g, " ").trim() : 'Error al actualizar el garage.';
@@ -389,7 +355,7 @@ function EditarZona() {
 
   return (
     <div className="editar-zona">
-      <Header />
+      <HeaderSuperadmin />
 
       <main className="contenido-editar-zona">
         <section className="editar-zona-top">
@@ -409,156 +375,18 @@ function EditarZona() {
         </section>
 
         <form className="formulario-editar-zona" onSubmit={guardarCambios}>
-          <FormularioPreciosGarage values={precios} onChange={(name, value) => setPrecios((current) => ({ ...current, [name]: value }))} disabled={loading} />
+          <FormularioPreciosGarage values={formData} onChange={handleChange} disabled={loading} />
 
-          <section className="bloque-formulario">
-            <div className="bloque-titulo">
-              <span className="bloque-icono">
-                <Building2 size={20} />
-              </span>
-              <h3>Información general</h3>
-            </div>
-
-            <div className="campo-formulario">
-              <label>Nombre del garage</label>
-              <input
-                type="text"
-                placeholder="Garage B, Exterior Norte"
-                value={nombreGarage}
-                onChange={(e) => { setNombreGarage(e.target.value); touch("nombreGarage"); }}
-                autoComplete="off"
-                required
-              />
-              <FieldValidation conditions={buildConditions("nombreGarage")} isTouched={touched.nombreGarage} />
-            </div>
-
-            <div className="campo-formulario">
-              <label>Nivel / Planta</label>
-              <input
-                type="text"
-                value={piso}
-                onChange={(e) => { setPiso(e.target.value); touch("piso"); }}
-                placeholder="Ej: Piso 1, Subsuelo"
-                autoComplete="off"
-                required
-              />
-              <FieldValidation conditions={buildConditions("piso")} isTouched={touched.piso} />
-            </div>
-
-            <div className="campo-formulario">
-              <label>Ubicación</label>
-              {isLoaded ? (
-                <Autocomplete
-                  onLoad={(autocomplete) => { autocompleteRef.current = autocomplete; }}
-                  onPlaceChanged={handlePlaceChanged}
-                >
-                  <input
-                    type="text"
-                    placeholder="Ubicación del garage"
-                    value={ubicacion}
-                    onChange={(e) => { setUbicacion(e.target.value); touch("ubicacion"); }}
-                    autoComplete="off"
-                    required
-                  />
-                </Autocomplete>
-              ) : (
-                <input
-                  type="text"
-                  placeholder="Ubicación del garage"
-                  value={ubicacion}
-                  onChange={(e) => { setUbicacion(e.target.value); touch("ubicacion"); }}
-                  autoComplete="off"
-                  required
-                />
-              )}
-              <FieldValidation conditions={buildConditions("ubicacion")} isTouched={touched.ubicacion} />
-            </div>
-          </section>
-
-          <section className="bloque-formulario">
-            <div className="bloque-titulo">
-              <span className="bloque-icono">
-                <Clock size={20} />
-              </span>
-              <h3>Horario operativo</h3>
-            </div>
-
-            <div className="horario-grid">
-              <div className="horario-field">
-                <label className="horario-label">
-                  <Clock size={14} />
-                  Hora de apertura
-                </label>
-                <div className={`horario-input-wrap ${es24Horas ? 'horario-input-wrap--disabled' : ''}`}>
-                  <input
-                    type="time"
-                    value={horaApertura}
-                    onChange={(e) => {
-                      setHoraApertura(e.target.value);
-                      touch("horaApertura");
-                      if (es24Horas) setEs24Horas(false);
-                    }}
-                    disabled={es24Horas}
-                    required={!es24Horas}
-                  />
-                  <FieldValidation conditions={buildConditions("horaApertura")} isTouched={touched.horaApertura} />
-                </div>
-              </div>
-
-              <div className="horario-divider">
-                <ArrowLeft size={14} />
-              </div>
-
-              <div className="horario-field">
-                <label className="horario-label">
-                  <Clock size={14} />
-                  Hora de cierre
-                </label>
-                <div className={`horario-input-wrap ${es24Horas ? 'horario-input-wrap--disabled' : ''}`}>
-                  <input
-                    type="time"
-                    value={horaCierre}
-                    onChange={(e) => {
-                      setHoraCierre(e.target.value);
-                      touch("horaCierre");
-                      if (es24Horas) setEs24Horas(false);
-                    }}
-                    disabled={es24Horas}
-                    required={!es24Horas}
-                  />
-                  <FieldValidation conditions={buildConditions("horaCierre")} isTouched={touched.horaCierre} />
-                </div>
-              </div>
-
-              <label className="toggle-24hs">
-                <span className="toggle-switch">
-                  <input
-                    type="checkbox"
-                    checked={es24Horas}
-                    onChange={(e) => {
-                      const marcado = e.target.checked;
-                      setEs24Horas(marcado);
-                      if (marcado) {
-                        setHoraApertura('00:00');
-                        setHoraCierre('23:59');
-                      } else {
-                        setHoraApertura('');
-                        setHoraCierre('');
-                      }
-                    }}
-                  />
-                  <span className="toggle-slider" />
-                </span>
-                <span className="toggle-text">Abierto 24 horas</span>
-              </label>
-            </div>
-
-            <SelectorDiasOperativos
-              value={diasSeleccionados}
-              onChange={setDiasSeleccionados}
-              validation={{ conditions: buildConditions("diasSeleccionados"), isTouched: touched.diasSeleccionados }}
-            />
-          </section>
+          <FormularioZona
+            formData={formData}
+            onChange={handleChange}
+            hideSede
+            pisoNumerico={false}
+            fieldsValidation={fieldsValidation}
+            onCoordenadasChange={setCoordenadas}
+            titulo="Información general"
+            descripcion="Actualiza la identidad, ubicación y horario operativo del garage seleccionado."
+          />
 
           <section className="bloque-formulario">
             <div className="bloque-titulo">
@@ -590,101 +418,11 @@ function EditarZona() {
             </div>
           </section>
 
-          <section className="bloque-formulario">
-            <div className="bloque-titulo">
-              <span className="bloque-icono">
-                <Layers size={20} />
-              </span>
-              <h3>Gestión de plazas</h3>
-            </div>
-
-            <div className="plazas-resumen">
-              <span>Capacidad total de la zona</span>
-              <strong>{capacidad} plazas</strong>
-            </div>
-
-            <div className="plazas-grid">
-              <div className="plaza-item">
-                <div className="plaza-top">
-                  <div className="plaza-icon">
-                    <Star size={18} />
-                  </div>
-                  <span className="plaza-tag">RESERVAS</span>
-                </div>
-
-                <h4>Capacidad Reservas</h4>
-                <p>Plazas para usuarios con reserva.</p>
-
-                <div className="contador">
-                  <button
-                    type="button"
-                    onClick={() => setCapacidadReservas((valor) => Math.max(0, valor - 1))}
-                    disabled={capacidadReservas === 0}
-                  >
-                    <Minus size={16} />
-                  </button>
-                  <input
-                    type="number"
-                    min="0"
-                    value={capacidadReservas}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      setCapacidadReservas(Number.isNaN(value) ? 0 : Math.max(0, value));
-                      touch("capacidadReservas");
-                    }}
-                    autoComplete="off"
-                  />
-                  <FieldValidation conditions={buildConditions("capacidadReservas")} isTouched={touched.capacidadReservas} />
-                  <button
-                    type="button"
-                    onClick={() => setCapacidadReservas((valor) => valor + 1)}
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="plaza-item">
-                <div className="plaza-top">
-                  <div className="plaza-icon">
-                    <CarFront size={18} />
-                  </div>
-                  <span className="plaza-tag">NO RESERVAS</span>
-                </div>
-
-                <h4>Capacidad No Reservas</h4>
-                <p>Plazas de uso general por llegada.</p>
-
-                <div className="contador">
-                  <button
-                    type="button"
-                    onClick={() => setCapacidadNoReservas((valor) => Math.max(0, valor - 1))}
-                    disabled={capacidadNoReservas === 0}
-                  >
-                    <Minus size={16} />
-                  </button>
-                  <input
-                    type="number"
-                    min="0"
-                    value={capacidadNoReservas}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      setCapacidadNoReservas(Number.isNaN(value) ? 0 : Math.max(0, value));
-                      touch("capacidadNoReservas");
-                    }}
-                    autoComplete="off"
-                  />
-                  <FieldValidation conditions={buildConditions("capacidadNoReservas")} isTouched={touched.capacidadNoReservas} />
-                  <button
-                    type="button"
-                    onClick={() => setCapacidadNoReservas((valor) => valor + 1)}
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
+          <FormularioCapacidad
+            formData={formData}
+            onChange={handleChange}
+            fieldsValidation={fieldsValidation}
+          />
 
           <section className="bloque-formulario">
             <div className="seccion-garajistas-zona">
@@ -700,11 +438,11 @@ function EditarZona() {
                   className="btn-agregar-garajista-zona"
                   onClick={() => {
                     const garageId = obtenerIdGarage(garageData);
-                    navigate("/agregar_garajista", { 
-                      state: { 
+                    navigate("/agregar_garajista", {
+                      state: {
                         id_garage: garageId,
                         garage: garageData
-                      } 
+                      }
                     })
                   }}
                 >
@@ -744,7 +482,7 @@ function EditarZona() {
                           <BotonGenerico
                             className="gz-btn-eliminar"
                             onClick={() => handleArchivarEmpleado(garajistaId, nombreCompleto)}
-                            aria-label={`Archivar garajista ${nombreCompleto}`} 
+                            aria-label={`Archivar garajista ${nombreCompleto}`}
                           >
                             <Trash2 size={16} className="gz-trash-icon" />
                           </BotonGenerico>

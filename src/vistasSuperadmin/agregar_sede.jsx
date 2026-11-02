@@ -1,24 +1,28 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, CircleCheck } from "lucide-react";
-import { Autocomplete } from '@react-google-maps/api';
+import { ArrowLeft } from "lucide-react";
 import "./agregar_sede.css";
 import HeaderSuperadmin from "../componentesSuperadmin/header_superadmin";
-import BotonGenerico from "../componentesAdmin/boton_generico";
 import { SedesCreate } from "../servicies/API_Sede";
 import { EmpresasGetAll } from "../servicies/API_Empresa";
 import useLiveValidation from "../hooks/useLiveValidation";
-import FieldValidation from "../components/FieldValidation";
-import { useGoogleMaps } from "../contexts/useGoogleMaps";
+import { SEDE_NOMBRE_VALIDATION } from "../helpers/validation";
+import FormularioSede from "../components/FormularioSede";
 
 const validationSchema = {
   idEmpresa: [
     { rule: (v) => v !== "", message: "Selecciona una empresa" },
   ],
-  nombre: [
-    { rule: (v) => v?.trim().length > 0, message: "Requerido" },
-    { rule: (v) => v?.trim().length >= 2, message: "Mínimo 2 caracteres" },
-  ],
+  ...SEDE_NOMBRE_VALIDATION,
+};
+
+const CLASES_FORMULARIO = {
+  form: "agregar-sede-form",
+  inputGroup: "input-group-superadmin",
+  error: "form-error-superadmin",
+  actions: "agregar-sede-actions",
+  saveButton: "btn-guardar-grande",
+  cancelButton: "btn-cancelar-grande",
 };
 
 const obtenerListado = (datos) => {
@@ -58,34 +62,8 @@ function AgregarSede() {
   const [loading, setLoading] = useState(false);
   const [loadingEmpresas, setLoadingEmpresas] = useState(true);
 
-  const { isLoaded, loadError } = useGoogleMaps();
-  if (loadError) console.warn('agregar_sede: Google Maps no cargó:', loadError);
-
-  const autocompleteRef = useRef(null);
-
-  const handlePlaceChanged = () => {
-    const place = autocompleteRef.current.getPlace();
-    if (place?.geometry) {
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
-      const direccion = place.formatted_address || '';
-      setFormData((prev) => ({ ...prev, ubicacion: direccion }));
-      setCoordenadas({ lat, lng, direccion });
-    }
-  };
-
   const { isValid, touched, getFieldProps } = useLiveValidation(formData, validationSchema);
   const field = (name) => getFieldProps(name, setFormData);
-
-  const buildConditions = (fieldName) => {
-    if (!validationSchema[fieldName]) return [];
-    const value = formData[fieldName];
-    return validationSchema[fieldName].map((item) => {
-      const ruleFn = item.rule;
-      const message = item.message;
-      return { label: message, met: ruleFn(value) };
-    });
-  };
 
   useEffect(() => {
     let mounted = true;
@@ -147,92 +125,33 @@ function AgregarSede() {
         {loadingEmpresas ? (
           <AgregarSedeSkeleton />
         ) : (
-        <section className="agregar-sede-form">
-          <div className="input-group-superadmin">
-            <label>Empresa</label>
-            <select value={formData.idEmpresa} onChange={(e) => setFormData((prev) => ({ ...prev, idEmpresa: e.target.value }))} autoComplete="off" required>
-              <option value="">Seleccionar empresa...</option>
-              {empresas.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="input-group-superadmin">
-            <label>Nombre de la sede</label>
-            <input
-              type="text"
-              placeholder="Ej: Sede Central"
-              {...field("nombre")}
-              autoComplete="off"
-              required
-            />
-            <FieldValidation conditions={buildConditions("nombre")} isTouched={touched.nombre} />
-          </div>
-
-          <div className="input-group-superadmin">
-            <label>Descripción</label>
-            <textarea
-              placeholder="Descripción de la sede (opcional)"
-              value={formData.descripcion}
-              onChange={(e) => setFormData((prev) => ({ ...prev, descripcion: e.target.value }))}
-              rows={3}
-              autoComplete="off"
-              required
-            />
-          </div>
-
-          <div className="input-group-superadmin">
-            <label>Ubicación</label>
-            {isLoaded ? (
-              <Autocomplete
-                onLoad={(autocomplete) => { autocompleteRef.current = autocomplete; }}
-                onPlaceChanged={handlePlaceChanged}
-              >
-                <input
-                  type="text"
-                  placeholder="Ej: Av. Corrientes 1234, CABA"
-                  value={formData.ubicacion}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, ubicacion: e.target.value }))}
-                  autoComplete="off"
-                  required
-                />
-              </Autocomplete>
-            ) : (
-              <input
-                type="text"
-                placeholder="Ej: Av. Corrientes 1234, CABA"
-                value={formData.ubicacion}
-                onChange={(e) => setFormData((prev) => ({ ...prev, ubicacion: e.target.value }))}
-                autoComplete="off"
-                required
-              />
+          <FormularioSede
+            formData={formData}
+            setFormData={setFormData}
+            validationSchema={validationSchema}
+            field={field}
+            touched={touched}
+            empresaField={(
+              <div className="input-group-superadmin">
+                <label>Empresa</label>
+                <select value={formData.idEmpresa} onChange={(e) => setFormData((prev) => ({ ...prev, idEmpresa: e.target.value }))} autoComplete="off" required>
+                  <option value="">Seleccionar empresa...</option>
+                  {empresas.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
-          </div>
-
-          {error && <p className="form-error-superadmin">{error}</p>}
-
-          <div className="agregar-sede-actions">
-            <BotonGenerico
-              className="btn-guardar-grande"
-              onClick={handleGuardar}
-              disabled={loading}
-            >
-              <CircleCheck size={20} color="white" />
-              <span>{loading ? "Guardando..." : "Guardar sede"}</span>
-            </BotonGenerico>
-
-            <BotonGenerico
-              style={{ backgroundColor: "grey" }}
-              className="btn-cancelar-grande"
-              onClick={() => navigate("/superadmin/gestion_empresas", { replace: true, state: { empresaId: Number(formData.idEmpresa) || undefined } })}
-            >
-              <span>Cancelar</span>
-            </BotonGenerico>
-          </div>
-        </section>
+            onCoordenadasChange={setCoordenadas}
+            onGuardar={handleGuardar}
+            onCancelar={() => navigate("/superadmin/gestion_empresas", { replace: true, state: { empresaId: Number(formData.idEmpresa) || undefined } })}
+            loading={loading}
+            error={error}
+            classNames={CLASES_FORMULARIO}
+            cancelButtonStyle={{ backgroundColor: "grey" }}
+          />
         )}
       </main>
     </div>

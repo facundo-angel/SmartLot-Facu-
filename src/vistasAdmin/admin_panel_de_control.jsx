@@ -4,10 +4,8 @@ import {
   ArrowLeft,
   BarChart3,
   CheckCircle2,
-  Clock3,
   MessageCircleQuestion,
   MessageSquareWarning,
-  RotateCcw,
   Search,
   Trash2,
   X
@@ -17,6 +15,9 @@ import Header from '../componentesAdmin/header_admin';
 import FooterEmpleado from '../componentesAdmin/footer_admin';
 import BotonReportes from "../componentesAdmin/boton_reportes";
 import EmptyState from "../componentesCompartidos/EmptyState";
+import TablaConflictos, { ConflictsTableSkeleton } from "../componentesCompartidos/TablaConflictos";
+import { obtenerIdUsuario } from "../componentesCompartidos/utilConflictos";
+import ToastUndo from "../componentesShared/ToastUndo";
 import TablaReservasPanleControl from "../componentesAdmin/tabla_reservas_panelControl";
 import {
   ConflictosCreate,
@@ -42,41 +43,8 @@ const obtenerListado = (datos) => {
   return [];
 };
 
-const obtenerIdUsuario = (item) => item?.id_usuario ?? item?.idUsuario ?? item?.usuario_id ?? item?.id;
 const obtenerIdEmpresa = (item) => item?.id_empresa ?? item?.idEmpresa ?? item?.empresa_id ?? item?.empresaId;
 const obtenerIdSede = (item) => item?.id_sede ?? item?.idSede ?? item?.sede_id ?? item?.sedeId;
-const obtenerFechaConflicto = (item) =>
-  item?.fecha_creacion ?? item?.fechaCreacion ?? item?.created_at ?? item?.createdAt ?? item?.CreateAt;
-const obtenerFechaBorrado = (item) =>
-  item?.DeleteAt ?? item?.deleteAt ?? item?.deleted_at ?? item?.deletedAt;
-
-const formatearFecha = (fecha) => {
-  if (!fecha) return "Sin fecha";
-  const date = new Date(fecha);
-  if (Number.isNaN(date.getTime())) return "Sin fecha";
-
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-};
-
-const prioridadClase = (prioridad) => {
-  const valor = String(prioridad || "").toLowerCase();
-  if (valor === "alta") return "alta";
-  if (valor === "media") return "media";
-  return "baja";
-};
-
-const estadoClase = (estado) => {
-  const valor = String(estado || "").toLowerCase();
-  if (valor.includes("resuelto")) return "resuelto";
-  if (valor.includes("proceso")) return "proceso";
-  return "pendiente";
-};
 
 const PanelStatsSkeleton = () => (
   <section className="panel-stats-card panel-stats--skeleton" aria-label="Cargando ocupacion total">
@@ -87,48 +55,6 @@ const PanelStatsSkeleton = () => (
     <span className="panel-skeleton-line panel-skeleton-value" />
     <span className="panel-skeleton-progress" />
   </section>
-);
-
-const ConflictsTableSkeleton = ({ rows = 4 }) => (
-  <div className="conflicts-table-shell conflicts-table-shell--skeleton" aria-label="Cargando conflictos">
-    <table className="conflicts-table">
-      <thead>
-        <tr>
-          <th>Empleado</th>
-          <th>Descripcion</th>
-          <th>Prioridad</th>
-          <th>Estado</th>
-          <th>Fecha</th>
-          <th aria-label="Acciones" />
-        </tr>
-      </thead>
-      <tbody>
-        {Array.from({ length: rows }).map((_, index) => (
-          <tr key={index}>
-            <td>
-              <span className="panel-skeleton-line panel-skeleton-name" />
-              <span className="panel-skeleton-line panel-skeleton-email" />
-            </td>
-            <td>
-              <span className="panel-skeleton-line panel-skeleton-description" />
-            </td>
-            <td>
-              <span className="panel-skeleton-pill" />
-            </td>
-            <td>
-              <span className="panel-skeleton-select" />
-            </td>
-            <td>
-              <span className="panel-skeleton-line panel-skeleton-date" />
-            </td>
-            <td>
-              <span className="panel-skeleton-action" />
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
 );
 
 const getAdminConflictScope = (usuario) => {
@@ -187,14 +113,13 @@ export default function AdminPanelControl() {
   const [compactMode, setCompactMode] = useState(true);
   const [ultimaActualizacion, setUltimaActualizacion] = useState(null);
   const [conflictosResolviendo, setConflictosResolviendo] = useState(() => new Set());
-  const toastTimeoutRef = useRef(null);
+  const toastKeyRef = useRef(0);
   const [tiempoTranscurrido, setTiempoTranscurrido] = useState("");
   const [isStale, setIsStale] = useState(false);
 
   const mostrarToast = (mensaje, onDeshacer) => {
-    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    setToast({ mensaje, onDeshacer });
-    toastTimeoutRef.current = setTimeout(() => setToast(null), 5000);
+    toastKeyRef.current += 1;
+    setToast({ id: toastKeyRef.current, mensaje, onDeshacer });
   };
 
   useEffect(() => {
@@ -647,61 +572,15 @@ export default function AdminPanelControl() {
               action={{ label: "Volver a conflictos", onClick: () => setMostrarPapelera(false), variant: "secondary" }}
             />
           ) : (
-            <div className={`conflicts-table-shell ${compactMode ? "conflicts-table-shell--compact" : ""}`}>
-              <table className="conflicts-table">
-                <thead>
-                  <tr>
-                    <th>Empleado</th>
-                    <th>Descripcion</th>
-                    <th>Prioridad</th>
-                    <th>Estado</th>
-                    <th>Eliminado</th>
-                    <th aria-label="Acciones" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {papeleraVisible.map((conflicto) => {
-                    const usuarioConflicto = usuariosPorId.get(Number(obtenerIdUsuario(conflicto)));
-                    const nombreUsuario = usuarioConflicto
-                      ? `${usuarioConflicto.nombre || ""} ${usuarioConflicto.apellido || ""}`.trim() || usuarioConflicto.email
-                      : `Usuario #${obtenerIdUsuario(conflicto) || "-"}`;
-                    const deshabilitado = actualizandoId === conflicto.id;
-
-                    return (
-                      <tr key={conflicto.id}>
-                        <td>
-                          <strong>{nombreUsuario}</strong>
-                          {usuarioConflicto?.email && <span>{usuarioConflicto.email}</span>}
-                        </td>
-                        <td className="conflicts-table__description">{conflicto.descripcion}</td>
-                        <td>
-                          <span className={`conflict-priority conflict-priority--${prioridadClase(conflicto.prioridad)}`}>
-                            {conflicto.prioridad || "Baja"}
-                          </span>
-                        </td>
-                        <td>{conflicto.estado || "Pendiente"}</td>
-                        <td>
-                          <span className="conflicts-table__date">
-                            <Clock3 size={14} />
-                            {formatearFecha(obtenerFechaBorrado(conflicto))}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            className="conflict-restore-btn"
-                            onClick={() => handleRestaurar(conflicto.id)}
-                            disabled={deshabilitado}
-                            aria-label="Restaurar conflicto"
-                          >
-                            <RotateCcw size={15} />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <TablaConflictos
+              conflictos={papeleraVisible}
+              usuariosPorId={usuariosPorId}
+              actualizandoId={actualizandoId}
+              compactMode={compactMode}
+              encabezadoUsuario="Empleado"
+              modoPapelera
+              onRestaurar={handleRestaurar}
+            />
           )
         ) : conflictosVisibles.length === 0 ? (
           busquedaConflictos ? (
@@ -722,80 +601,17 @@ export default function AdminPanelControl() {
             />
           )
         ) : (
-          <div className={`conflicts-table-shell ${compactMode ? "conflicts-table-shell--compact" : ""}`}>
-            <table className="conflicts-table">
-              <thead>
-                <tr>
-                  <th>Empleado</th>
-                  <th>Descripcion</th>
-                  <th>Prioridad</th>
-                  <th>Estado</th>
-                  <th>Fecha</th>
-                  <th aria-label="Acciones" />
-                </tr>
-              </thead>
-              <tbody>
-                {conflictosVisibles.map((conflicto) => {
-                  const usuario = usuariosPorId.get(Number(obtenerIdUsuario(conflicto)));
-                  const nombreUsuario = usuario
-                    ? `${usuario.nombre || ""} ${usuario.apellido || ""}`.trim() || usuario.email
-                    : `Usuario #${obtenerIdUsuario(conflicto) || "-"}`;
-                  const deshabilitado = actualizandoId === conflicto.id;
-                  const esUrgente = conflicto.prioridad === "Alta" && conflicto.estado !== "Resuelto";
-                  const resolviendo = conflictosResolviendo.has(conflicto.id);
-
-                  return (
-                    <tr
-                      key={conflicto.id}
-                      className={[
-                        esUrgente ? "conflict-row--urgent" : "",
-                        resolviendo ? "conflict-row--resolving" : "",
-                      ].filter(Boolean).join(" ")}
-                    >
-                      <td>
-                        <strong>{nombreUsuario}</strong>
-                        {usuario?.email && <span>{usuario.email}</span>}
-                      </td>
-                      <td className="conflicts-table__description">{conflicto.descripcion}</td>
-                      <td>
-                        <span className={`conflict-priority conflict-priority--${prioridadClase(conflicto.prioridad)}`}>
-                          {conflicto.prioridad || "Baja"}
-                        </span>
-                      </td>
-                      <td>
-                        <select
-                          className={`conflict-status-select conflict-status-select--${estadoClase(conflicto.estado)}`}
-                          value={conflicto.estado || "Pendiente"}
-                          onChange={(event) => handleCambiarEstado(conflicto, event.target.value)}
-                          disabled={deshabilitado || resolviendo}
-                        >
-                          <option value="Pendiente">Pendiente</option>
-                          <option value="En Proceso">En Proceso</option>
-                          <option value="Resuelto">Resuelto</option>
-                        </select>
-                      </td>
-                      <td>
-                        <span className="conflicts-table__date">
-                          <Clock3 size={14} />
-                          {formatearFecha(obtenerFechaConflicto(conflicto))}
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          className="conflict-delete-btn"
-                          onClick={() => handleEliminar(conflicto.id)}
-                          disabled={deshabilitado || resolviendo}
-                          aria-label="Eliminar conflicto"
-                        >
-                          {conflicto.estado === "Resuelto" ? <CheckCircle2 size={15} /> : <Trash2 size={15} />}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <TablaConflictos
+            conflictos={conflictosVisibles}
+            usuariosPorId={usuariosPorId}
+            actualizandoId={actualizandoId}
+            conflictosResolviendo={conflictosResolviendo}
+            compactMode={compactMode}
+            encabezadoUsuario="Empleado"
+            resaltarUrgentes
+            onCambiarEstado={handleCambiarEstado}
+            onEliminar={handleEliminar}
+          />
         )}
 
         <div>
@@ -808,15 +624,12 @@ export default function AdminPanelControl() {
       <FooterEmpleado />
 
       {toast && (
-        <div className="toast-container">
-          <div className="toast">
-            <span className="toast__message">{toast.mensaje}</span>
-            <button className="toast__undo" onClick={() => { toast.onDeshacer(); setToast(null); if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current); }}>
-              Deshacer
-            </button>
-            <div className="toast__progress" />
-          </div>
-        </div>
+        <ToastUndo
+          key={toast.id}
+          message={toast.mensaje}
+          onUndo={toast.onDeshacer}
+          onClose={() => setToast(null)}
+        />
       )}
 
       {modalSoporteOpen && (

@@ -3,6 +3,7 @@ import { Calendar, Car, Clock, Loader, MapPin, Plus, Warehouse, WalletCards } fr
 import "./form_reserva.css";
 import { getDiaDesdeFecha, getDiaDisplay } from "../helpers/diasSemana";
 import useLiveValidation from "../hooks/useLiveValidation";
+import { buildConditions } from "../helpers/validation";
 import FieldValidation from "../components/FieldValidation";
 import { GaragesGetDistanciaSede } from "../servicies/API_Garage";
 import { GoogleMap, Marker } from "@react-google-maps/api";
@@ -114,19 +115,6 @@ const FormularioReserva = forwardRef(function FormularioReserva({
   const sinDisponibilidad = garageElegido
     && disponibilidadPreview?.hay_cupo_corporativo === false
     && disponibilidadPreview?.hay_cupo_pago === false;
-
-  const buildConditions = (fieldName) => {
-    const schema = getSchema();
-    if (!schema[fieldName]) return [];
-    const value = formData[fieldName];
-    return schema[fieldName].map((item) => {
-      if (typeof item === "function") {
-        const result = item(value);
-        return { label: result.message, met: result.rule(value) };
-      }
-      return { label: item.message, met: item.rule(value) };
-    });
-  };
 
   const ubicacionGarageActual = garageSeleccionadoObj?.ubicacion || 
                                 garageSeleccionadoObj?.direccion || 
@@ -252,7 +240,7 @@ const FormularioReserva = forwardRef(function FormularioReserva({
               autoComplete="off"
             />
             </div>
-            <FieldValidation conditions={buildConditions("fecha")} isTouched={touched.fecha} />
+            <FieldValidation conditions={buildConditions(getSchema(), "fecha", formData)} isTouched={touched.fecha} />
           </div>
 
         <div className="form-time-fields-row">
@@ -271,7 +259,7 @@ const FormularioReserva = forwardRef(function FormularioReserva({
                 autoComplete="off"
               />
             </div>
-            <FieldValidation conditions={buildConditions("horaInicio")} isTouched={touched.horaInicio} />
+            <FieldValidation conditions={buildConditions(getSchema(), "horaInicio", formData)} isTouched={touched.horaInicio} />
           </div>
 
           <div className="form-field-group">
@@ -289,7 +277,7 @@ const FormularioReserva = forwardRef(function FormularioReserva({
                 autoComplete="off"
               />
             </div>
-            <FieldValidation conditions={buildConditions("horaFin")} isTouched={touched.horaFin} />
+            <FieldValidation conditions={buildConditions(getSchema(), "horaFin", formData)} isTouched={touched.horaFin} />
           </div>
         </div>
 
@@ -323,7 +311,7 @@ const FormularioReserva = forwardRef(function FormularioReserva({
               })}
             </select>
           </div>
-          <FieldValidation conditions={buildConditions("idGarage")} isTouched={touched.idGarage} />
+          <FieldValidation conditions={buildConditions(getSchema(), "idGarage", formData)} isTouched={touched.idGarage} />
           
           {formData.idGarage && ubicacionGarageActual && (
             <div
@@ -564,7 +552,7 @@ const FormularioReserva = forwardRef(function FormularioReserva({
               })}
             </select>
           </div>
-          <FieldValidation conditions={buildConditions("idVehiculo")} isTouched={touched.idVehiculo} />
+          <FieldValidation conditions={buildConditions(getSchema(), "idVehiculo", formData)} isTouched={touched.idVehiculo} />
           {vehiculos.length === 0 && (
             <EmptyState
               size="sm"

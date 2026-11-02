@@ -6,6 +6,7 @@ import HeaderSuperadmin from "../componentesSuperadmin/header_superadmin";
 import BotonGenerico from "../componentesAdmin/boton_generico";
 import { EmpresasCreate } from "../servicies/API_Empresa";
 import useLiveValidation from "../hooks/useLiveValidation";
+import { buildConditions } from "../helpers/validation";
 import FieldValidation from "../components/FieldValidation";
 
 const validationSchema = {
@@ -26,16 +27,6 @@ function AgregarEmpresa() {
 
   const { isValid, touched, getFieldProps } = useLiveValidation(formData, validationSchema);
   const field = (name) => getFieldProps(name, setFormData);
-
-  const buildConditions = (fieldName) => {
-    if (!validationSchema[fieldName]) return [];
-    const value = formData[fieldName];
-    return validationSchema[fieldName].map((item) => {
-      const ruleFn = item.rule;
-      const message = item.message;
-      return { label: message, met: ruleFn(value) };
-    });
-  };
 
   const handleGuardar = async () => {
     setError("");
@@ -91,7 +82,7 @@ function AgregarEmpresa() {
               autoComplete="off"
               required
             />
-            <FieldValidation conditions={buildConditions("nombre")} isTouched={touched.nombre} />
+            <FieldValidation conditions={buildConditions(validationSchema, "nombre", formData)} isTouched={touched.nombre} />
           </div>
 
           <div className="input-group-superadmin">

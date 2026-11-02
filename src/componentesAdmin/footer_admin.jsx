@@ -1,4 +1,3 @@
-import "./footer_admin.css";
 import {
   House,
   CarFront,
@@ -6,87 +5,46 @@ import {
   ChartBarDecreasing,
   CreditCard,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { useFooterCompacto } from "../hooks/useFooterCompacto";
-import FooterBotton from "./admin_dashboard_boton_footer";
+import FooterNav from "../componentesCompartidos/FooterNav";
 
 const FOOTER_STORAGE_KEY = "smartlot-footer-admin-active-index";
 
 const FOOTER_ITEMS = [
   {
-    titulo: "INICIO",
+    label: "INICIO",
     path: "/admin_dashboard",
-    icono: <House size={28} />,
+    icon: <House size={28} />,
   },
   {
-    titulo: "GARAGE",
+    label: "GARAGE",
     path: "/gestion_garages",
-    icono: <CarFront size={28} />,
+    icon: <CarFront size={28} />,
   },
   {
-    titulo: "GESTION",
+    label: "GESTION",
     path: "/gestion_de_empleados",
-    icono: <UsersRound size={28} />,
+    icon: <UsersRound size={28} />,
   },
   {
-    titulo: "PANEL",
+    label: "PANEL",
     path: "/admin_panel_de_control",
-    icono: <ChartBarDecreasing size={28} />,
+    icon: <ChartBarDecreasing size={28} />,
   },
   {
-    titulo: "PAGOS",
+    label: "PAGOS",
     path: "/admin_pagos",
-    icono: <CreditCard size={28} />,
+    icon: <CreditCard size={28} />,
   },
 ];
 
-const obtenerIndiceGuardado = (fallback) => {
-  const guardado = Number(sessionStorage.getItem(FOOTER_STORAGE_KEY));
-  return Number.isInteger(guardado) && guardado >= 0 && guardado < FOOTER_ITEMS.length
-    ? guardado
-    : fallback;
-};
-
 function FooterAdmin() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const compacto = useFooterCompacto();
-
-  const isPathActive = (path) => location.pathname === path;
-  const activeIndex = Math.max(
-    FOOTER_ITEMS.findIndex((item) => isPathActive(item.path)),
-    0
-  );
-  const [visualIndex, setVisualIndex] = useState(() => obtenerIndiceGuardado(activeIndex));
-  const activeOffset = `${visualIndex * 100}%`;
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      setVisualIndex(activeIndex);
-      sessionStorage.setItem(FOOTER_STORAGE_KEY, String(activeIndex));
-    });
-
-    return () => cancelAnimationFrame(frame);
-  }, [activeIndex]);
-
   return (
-    <footer
-      className={`footer-admin${compacto ? " footer-compacto" : ""}`}
-      style={{ "--footer-active-offset": activeOffset, "--footer-items": FOOTER_ITEMS.length }}
-      aria-label="Navegacion principal del administrador"
-    >
-      <span className="footer-active-indicator" aria-hidden="true" />
-      {FOOTER_ITEMS.map((item) => (
-        <FooterBotton
-          key={item.path}
-          titulo={item.titulo}
-          icono={item.icono}
-          onClick={() => navigate(item.path)}
-          isActive={isPathActive(item.path)}
-        />
-      ))}
-    </footer>
+    <FooterNav
+      items={FOOTER_ITEMS}
+      storageKey={FOOTER_STORAGE_KEY}
+      ariaLabel="Navegacion principal del administrador"
+      className="footer-admin"
+    />
   );
 }
 

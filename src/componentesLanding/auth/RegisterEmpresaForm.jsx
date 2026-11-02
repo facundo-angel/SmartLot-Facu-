@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Building2, CircleCheck, User } from "lucide-react";
 import apiClient from "../../api/client";
 import useLiveValidation from "../../hooks/useLiveValidation";
+import { buildConditions } from "../../helpers/validation";
 import RegisterField from "./RegisterField";
 
 const SOLO_LETRAS = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/;
@@ -89,16 +90,6 @@ export default function RegisterEmpresaForm() {
     getSchema()
   );
 
-  const buildConditions = (fieldName) => {
-    const schema = getSchema();
-    if (!schema[fieldName]) return [];
-    const value = formData[fieldName];
-    return schema[fieldName].map((item) => ({
-      label: item.message,
-      met: item.rule(value),
-    }));
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -181,7 +172,7 @@ export default function RegisterEmpresaForm() {
           label="Nombre"
           autoComplete="given-name"
           {...getFieldProps("nombre", setFormData)}
-          conditions={buildConditions("nombre")}
+          conditions={buildConditions(getSchema(), "nombre", formData)}
           isTouched={touched.nombre}
         />
         <RegisterField
@@ -189,7 +180,7 @@ export default function RegisterEmpresaForm() {
           label="Apellido"
           autoComplete="family-name"
           {...getFieldProps("apellido", setFormData)}
-          conditions={buildConditions("apellido")}
+          conditions={buildConditions(getSchema(), "apellido", formData)}
           isTouched={touched.apellido}
         />
       </div>
@@ -200,7 +191,7 @@ export default function RegisterEmpresaForm() {
         type="email"
         autoComplete="email"
         {...getFieldProps("email", setFormData)}
-        conditions={buildConditions("email")}
+        conditions={buildConditions(getSchema(), "email", formData)}
         isTouched={touched.email}
       />
 
@@ -211,7 +202,7 @@ export default function RegisterEmpresaForm() {
         inputMode="numeric"
         autoComplete="tel"
           {...getFieldProps("telefono", setFormData)}
-          conditions={buildConditions("telefono")}
+          conditions={buildConditions(getSchema(), "telefono", formData)}
           isTouched={touched.telefono}
         />
 
@@ -221,7 +212,7 @@ export default function RegisterEmpresaForm() {
         type="password"
         autoComplete="new-password"
         {...getFieldProps("contraseña", setFormData)}
-        conditions={buildConditions("contraseña")}
+        conditions={buildConditions(getSchema(), "contraseña", formData)}
         isTouched={touched.contraseña}
       />
 
@@ -231,7 +222,7 @@ export default function RegisterEmpresaForm() {
         type="password"
         autoComplete="new-password"
         {...getFieldProps("confirmar", setFormData)}
-        conditions={buildConditions("confirmar")}
+        conditions={buildConditions(getSchema(), "confirmar", formData)}
         isTouched={touched.confirmar}
       />
 
@@ -245,7 +236,7 @@ export default function RegisterEmpresaForm() {
         label="Nombre de la empresa"
         autoComplete="organization"
         {...getFieldProps("empresa_nombre", setFormData)}
-        conditions={buildConditions("empresa_nombre")}
+        conditions={buildConditions(getSchema(), "empresa_nombre", formData)}
         isTouched={touched.empresa_nombre}
       />
 
@@ -256,7 +247,7 @@ export default function RegisterEmpresaForm() {
         rows={3}
         placeholder="Contanos brevemente a qué se dedica tu empresa"
         {...getFieldProps("empresa_descripcion", setFormData)}
-        conditions={buildConditions("empresa_descripcion")}
+        conditions={buildConditions(getSchema(), "empresa_descripcion", formData)}
         isTouched={touched.empresa_descripcion}
       />
 

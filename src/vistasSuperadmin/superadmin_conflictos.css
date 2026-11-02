@@ -1,0 +1,34 @@
+/* Ajustes de página exclusivos de la vista de conflictos de superadmin. */
+
+.superadmin-conflicts-page {
+  padding-top: 24px;
+  padding-bottom: 120px;
+}
+
+.superadmin-conflicts-page .header-superadmin {
+  margin: -24px -48px 28px;
+}
+
+.superadmin-conflicts-header {
+  margin-top: 8px;
+  margin-bottom: 28px;
+}
+
+.superadmin-conflicts-page .conflicts-section {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .superadmin-conflicts-page {
+    padding-top: 16px;
+  }
+
+  .superadmin-conflicts-page .header-superadmin {
+    margin: -16px -16px 22px;
+  }
+
+  .superadmin-conflicts-header {
+    margin-top: 6px;
+    margin-bottom: 22px;
+  }
+}

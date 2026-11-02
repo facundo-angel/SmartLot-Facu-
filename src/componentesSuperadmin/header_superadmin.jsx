@@ -1,30 +1,26 @@
-import logo from "../Imagenes/Logo_SmartLot-removebg-preview.png";
-import "./header_superadmin.css";
-import { useNavigate } from "react-router-dom";
 import UserDropdown from "../components/UserDropdown";
+import CampanaNotificaciones from "../componentesCompartidos/CampanaNotificaciones";
+import HeaderShell from "../componentesCompartidos/HeaderShell";
+import "./header_superadmin.css";
 
 function HeaderSuperadmin() {
-  const navigate = useNavigate();
   return (
-    <div className="header-superadmin">
-      <div className="header-superadmin-left">
-        <div className="logo-superadmin">
-          <img
-            onClick={() => navigate("/superadmin_dashboard")}
-            src={logo}
-            alt="logo SmartLot"
-            style={{ cursor: "pointer" }}
-          />
-        </div>
-        <span className="header-superadmin-badge">Superadmin</span>
-      </div>
-      <div className="header-superadmin-right">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="30" height="30" fill="currentColor">
-          <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
-        </svg>
-        <UserDropdown />
-      </div>
-    </div>
+    <HeaderShell
+      className="header-superadmin"
+      leftClassName="header-superadmin-left"
+      rightClassName="header-superadmin-right"
+      logoClassName="logo-superadmin"
+      spacerClassName={null}
+      homePath="/superadmin_dashboard"
+      leftExtra={<span className="header-superadmin-badge">Superadmin</span>}
+    >
+      <CampanaNotificaciones
+        rutaTratos="/superadmin/conflictos"
+        ctaTexto="Ver conflictos"
+        emptyDescription="Cuando haya novedades de la plataforma, aparecerán acá."
+      />
+      <UserDropdown />
+    </HeaderShell>
   );
 }
 

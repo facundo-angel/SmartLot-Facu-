@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Clock3, MessageSquareWarning, RotateCcw, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, MessageSquareWarning, Search, Trash2 } from "lucide-react";
 
-import "../vistasAdmin/admin_panel_de_control.css";
+import "./superadmin_conflictos.css";
 import ToastUndo from "../componentesShared/ToastUndo";
 import EmptyState from "../componentesCompartidos/EmptyState";
+import TablaConflictos, { ConflictsTableSkeleton } from "../componentesCompartidos/TablaConflictos";
+import { obtenerFechaConflicto, obtenerIdUsuario } from "../componentesCompartidos/utilConflictos";
 import HeaderSuperadmin from "../componentesSuperadmin/header_superadmin";
 import FooterSuperadmin from "../componentesSuperadmin/footer_superadmin";
 import {
@@ -22,82 +24,6 @@ const obtenerListado = (datos) => {
   if (Array.isArray(datos?.data)) return datos.data;
   return [];
 };
-
-const obtenerIdUsuario = (item) => item?.id_usuario ?? item?.idUsuario ?? item?.usuario_id ?? item?.id;
-const obtenerFechaConflicto = (item) =>
-  item?.fecha_creacion ?? item?.fechaCreacion ?? item?.created_at ?? item?.createdAt ?? item?.CreateAt;
-const obtenerFechaBorrado = (item) =>
-  item?.DeleteAt ?? item?.deleteAt ?? item?.deleted_at ?? item?.deletedAt;
-
-const formatearFecha = (fecha) => {
-  if (!fecha) return "Sin fecha";
-  const date = new Date(fecha);
-  if (Number.isNaN(date.getTime())) return "Sin fecha";
-
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-};
-
-const prioridadClase = (prioridad) => {
-  const valor = String(prioridad || "").toLowerCase();
-  if (valor === "alta") return "alta";
-  if (valor === "media") return "media";
-  return "baja";
-};
-
-const estadoClase = (estado) => {
-  const valor = String(estado || "").toLowerCase();
-  if (valor.includes("resuelto")) return "resuelto";
-  if (valor.includes("proceso")) return "proceso";
-  return "pendiente";
-};
-
-const ConflictsTableSkeleton = ({ rows = 4 }) => (
-  <div className="conflicts-table-shell conflicts-table-shell--skeleton" aria-label="Cargando conflictos">
-    <table className="conflicts-table">
-      <thead>
-        <tr>
-          <th>Admin</th>
-          <th>Descripcion</th>
-          <th>Prioridad</th>
-          <th>Estado</th>
-          <th>Fecha</th>
-          <th aria-label="Acciones" />
-        </tr>
-      </thead>
-      <tbody>
-        {Array.from({ length: rows }).map((_, index) => (
-          <tr key={index}>
-            <td>
-              <span className="panel-skeleton-line panel-skeleton-name" />
-              <span className="panel-skeleton-line panel-skeleton-email" />
-            </td>
-            <td>
-              <span className="panel-skeleton-line panel-skeleton-description" />
-            </td>
-            <td>
-              <span className="panel-skeleton-pill" />
-            </td>
-            <td>
-              <span className="panel-skeleton-select" />
-            </td>
-            <td>
-              <span className="panel-skeleton-line panel-skeleton-date" />
-            </td>
-            <td>
-              <span className="panel-skeleton-action" />
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
 
 export default function SuperadminConflictos() {
   const navigate = useNavigate();
@@ -411,10 +337,10 @@ export default function SuperadminConflictos() {
         </div>
 
         {loading ? (
-          <ConflictsTableSkeleton />
+          <ConflictsTableSkeleton encabezadoUsuario="Admin" />
         ) : mostrarPapelera ? (
           cargandoPapelera ? (
-            <ConflictsTableSkeleton rows={3} />
+            <ConflictsTableSkeleton rows={3} encabezadoUsuario="Admin" />
           ) : papeleraVisible.length === 0 ? (
             <EmptyState
               size="sm"
@@ -424,61 +350,15 @@ export default function SuperadminConflictos() {
               action={{ label: "Volver a conflictos", onClick: () => setMostrarPapelera(false), variant: "secondary" }}
             />
           ) : (
-            <div className={`conflicts-table-shell ${compactMode ? "conflicts-table-shell--compact" : ""}`}>
-              <table className="conflicts-table">
-                <thead>
-                  <tr>
-                    <th>Admin</th>
-                    <th>Descripcion</th>
-                    <th>Prioridad</th>
-                    <th>Estado</th>
-                    <th>Eliminado</th>
-                    <th aria-label="Acciones" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {papeleraVisible.map((conflicto) => {
-                    const usuario = usuariosPorId.get(Number(obtenerIdUsuario(conflicto)));
-                    const nombreUsuario = usuario
-                      ? `${usuario.nombre || ""} ${usuario.apellido || ""}`.trim() || usuario.email
-                      : `Usuario #${obtenerIdUsuario(conflicto) || "-"}`;
-                    const deshabilitado = actualizandoId === conflicto.id;
-
-                    return (
-                      <tr key={conflicto.id}>
-                        <td>
-                          <strong>{nombreUsuario}</strong>
-                          {usuario?.email && <span>{usuario.email}</span>}
-                        </td>
-                        <td className="conflicts-table__description">{conflicto.descripcion}</td>
-                        <td>
-                          <span className={`conflict-priority conflict-priority--${prioridadClase(conflicto.prioridad)}`}>
-                            {conflicto.prioridad || "Baja"}
-                          </span>
-                        </td>
-                        <td>{conflicto.estado || "Pendiente"}</td>
-                        <td>
-                          <span className="conflicts-table__date">
-                            <Clock3 size={14} />
-                            {formatearFecha(obtenerFechaBorrado(conflicto))}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            className="conflict-restore-btn"
-                            onClick={() => handleRestaurar(conflicto.id)}
-                            disabled={deshabilitado}
-                            aria-label="Restaurar conflicto"
-                          >
-                            <RotateCcw size={15} />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <TablaConflictos
+              conflictos={papeleraVisible}
+              usuariosPorId={usuariosPorId}
+              actualizandoId={actualizandoId}
+              compactMode={compactMode}
+              encabezadoUsuario="Admin"
+              modoPapelera
+              onRestaurar={handleRestaurar}
+            />
           )
         ) : conflictosVisibles.length === 0 ? (
           busquedaConflictos ? (
@@ -498,73 +378,16 @@ export default function SuperadminConflictos() {
             />
           )
         ) : (
-          <div className={`conflicts-table-shell ${compactMode ? "conflicts-table-shell--compact" : ""}`}>
-            <table className="conflicts-table">
-              <thead>
-                <tr>
-                  <th>Admin</th>
-                  <th>Descripcion</th>
-                  <th>Prioridad</th>
-                  <th>Estado</th>
-                  <th>Fecha</th>
-                  <th aria-label="Acciones" />
-                </tr>
-              </thead>
-              <tbody>
-                {conflictosVisibles.map((conflicto) => {
-                  const usuario = usuariosPorId.get(Number(obtenerIdUsuario(conflicto)));
-                  const nombreUsuario = usuario
-                    ? `${usuario.nombre || ""} ${usuario.apellido || ""}`.trim() || usuario.email
-                    : `Usuario #${obtenerIdUsuario(conflicto) || "-"}`;
-                  const deshabilitado = actualizandoId === conflicto.id;
-                  const resolviendo = conflictosResolviendo.has(conflicto.id);
-
-                  return (
-                    <tr key={conflicto.id} className={resolviendo ? "conflict-row--resolving" : ""}>
-                      <td>
-                        <strong>{nombreUsuario}</strong>
-                        {usuario?.email && <span>{usuario.email}</span>}
-                      </td>
-                      <td className="conflicts-table__description">{conflicto.descripcion}</td>
-                      <td>
-                        <span className={`conflict-priority conflict-priority--${prioridadClase(conflicto.prioridad)}`}>
-                          {conflicto.prioridad || "Baja"}
-                        </span>
-                      </td>
-                      <td>
-                        <select
-                          className={`conflict-status-select conflict-status-select--${estadoClase(conflicto.estado)}`}
-                          value={conflicto.estado || "Pendiente"}
-                          onChange={(event) => handleCambiarEstado(conflicto, event.target.value)}
-                          disabled={deshabilitado || resolviendo}
-                        >
-                          <option value="Pendiente">Pendiente</option>
-                          <option value="En Proceso">En Proceso</option>
-                          <option value="Resuelto">Resuelto</option>
-                        </select>
-                      </td>
-                      <td>
-                        <span className="conflicts-table__date">
-                          <Clock3 size={14} />
-                          {formatearFecha(obtenerFechaConflicto(conflicto))}
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          className="conflict-delete-btn"
-                          onClick={() => handleEliminar(conflicto.id)}
-                          disabled={deshabilitado || resolviendo}
-                          aria-label="Eliminar conflicto"
-                        >
-                          {conflicto.estado === "Resuelto" ? <CheckCircle2 size={15} /> : <Trash2 size={15} />}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <TablaConflictos
+            conflictos={conflictosVisibles}
+            usuariosPorId={usuariosPorId}
+            actualizandoId={actualizandoId}
+            conflictosResolviendo={conflictosResolviendo}
+            compactMode={compactMode}
+            encabezadoUsuario="Admin"
+            onCambiarEstado={handleCambiarEstado}
+            onEliminar={handleEliminar}
+          />
         )}
       </section>
 

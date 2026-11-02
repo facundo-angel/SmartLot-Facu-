@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { Star, CarFront, Minus, Plus } from "lucide-react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
+import FieldValidation from "../components/FieldValidation";
 import "./formulario_capacidad.css";
 
 gsap.registerPlugin(useGSAP);
@@ -33,7 +34,7 @@ function AnimatedNumber({ value }) {
   return <strong ref={numberRef} className="cap-anim-num">{numberFormat.format(value)}</strong>;
 }
 
-function FormularioCapacidad({ formData = {}, onChange }) {
+function FormularioCapacidad({ formData = {}, onChange, fieldsValidation = {} }) {
   const containerRef = useRef(null);
 
   const capacidadReservas = Number(formData.capacidad_reservas) || 0;
@@ -138,6 +139,13 @@ function FormularioCapacidad({ formData = {}, onChange }) {
               <Plus size={16} />
             </button>
           </div>
+
+          {fieldsValidation.capacidad_reservas && (
+            <FieldValidation
+              conditions={fieldsValidation.capacidad_reservas.conditions}
+              isTouched={fieldsValidation.capacidad_reservas.isTouched}
+            />
+          )}
         </div>
 
         <div className="cap-card">
@@ -182,6 +190,13 @@ function FormularioCapacidad({ formData = {}, onChange }) {
               <Plus size={16} />
             </button>
           </div>
+
+          {fieldsValidation.capacidad_para_no_reservas && (
+            <FieldValidation
+              conditions={fieldsValidation.capacidad_para_no_reservas.conditions}
+              isTouched={fieldsValidation.capacidad_para_no_reservas.isTouched}
+            />
+          )}
         </div>
       </div>
     </div>

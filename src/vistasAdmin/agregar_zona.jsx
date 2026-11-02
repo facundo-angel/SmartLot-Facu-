@@ -9,6 +9,7 @@ import FormularioCapacidad from "../componentesAdmin/formulario_capacidad";
 import BotonGenerico from "../componentesAdmin/boton_generico";
 import { GaragesCreate } from "../servicies/API_Garage";
 import useLiveValidation from "../hooks/useLiveValidation";
+import { buildConditions } from "../helpers/validation";
 import FormularioPreciosGarage from "../componentesCompartidos/FormularioPreciosGarage";
 import { buildGaragePricesPayload } from "../helpers/prices";
 
@@ -91,23 +92,10 @@ function AgregarZona() {
 
   const { isValid, touched, handleChangeWithTouch } = useLiveValidation(formData, getSchema());
 
-  const buildConditions = (fieldName) => {
-    const schema = getSchema();
-    if (!schema[fieldName]) return [];
-    const value = formData[fieldName];
-    return schema[fieldName].map((item) => {
-      if (typeof item === 'function') {
-        const result = item(value);
-        return { label: result.message, met: result.rule(value) };
-      }
-      return { label: item.message, met: item.rule(value) };
-    });
-  };
-
   const fieldsValidation = {};
   Object.keys(getSchema()).forEach((field) => {
     fieldsValidation[field] = {
-      conditions: buildConditions(field),
+      conditions: buildConditions(getSchema(), field, formData),
       isTouched: touched[field],
     };
   });

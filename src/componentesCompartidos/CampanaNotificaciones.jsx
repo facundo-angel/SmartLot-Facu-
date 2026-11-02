@@ -42,7 +42,12 @@ const tipoNotificacion = (tipo) => {
   }
 };
 
-function CampanaNotificacionesInterna({ rutaTratos }) {
+function CampanaNotificacionesInterna({
+  rutaTratos,
+  ctaTexto = "Ir a tratos",
+  emptyDescription = "Cuando haya novedades sobre tus garages, aparecerán acá.",
+  className = "",
+}) {
   const navigate = useNavigate();
   const { notificaciones, noLeidas, loading, marcarLeida, marcarTodasLeidas, eliminar, eliminarLeidas } = useNotificaciones();
   const [isOpen, setIsOpen] = useState(false);
@@ -79,7 +84,7 @@ function CampanaNotificacionesInterna({ rutaTratos }) {
   const totalBadge = noLeidas > 0 ? (noLeidas > 99 ? "99+" : noLeidas) : null;
 
   return (
-    <div className="cn-campana" ref={containerRef}>
+    <div className={`cn-campana${className ? ` ${className}` : ""}`} ref={containerRef}>
       <button
         ref={triggerRef}
         type="button"
@@ -122,7 +127,7 @@ function CampanaNotificacionesInterna({ rutaTratos }) {
                 size="sm"
                 icon={Bell}
                 title="No tenés notificaciones por ahora"
-                description="Cuando haya novedades sobre tus garages, aparecerán acá."
+                description={emptyDescription}
               />
             ) : (
               notificaciones.map((notificacion) => {
@@ -142,7 +147,7 @@ function CampanaNotificacionesInterna({ rutaTratos }) {
                         <small>{tiempoRelativo(notificacion.created_at)}</small>
                       </div>
                       <button type="button" className="cn-item-cta" onClick={() => irATratos(notificacion)}>
-                        Ir a tratos
+                        {ctaTexto}
                         <ArrowRight size={14} />
                       </button>
                     </div>

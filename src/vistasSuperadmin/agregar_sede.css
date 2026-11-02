@@ -63,6 +63,12 @@
   gap: 20px;
 }
 
+/* La descripción es opcional: no debe mostrar el asterisco global de
+   campos requeridos que agrega index.css a .input-group-superadmin label. */
+.agregar-sede-form .input-group-superadmin label.label-optional::after {
+  content: none;
+}
+
 .agregar-sede-actions {
   display: flex;
   gap: 12px;

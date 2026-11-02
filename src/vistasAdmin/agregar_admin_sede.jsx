@@ -9,6 +9,7 @@ import BotonGenerico from "../componentesAdmin/boton_generico";
 import { UsuariosCreate } from "../servicies/API_Usuario";
 import { SedesGetById } from "../servicies/API_Sede";
 import useLiveValidation from "../hooks/useLiveValidation";
+import { buildConditions } from "../helpers/validation";
 
 function AgregarAdminSede() {
   const navigate = useNavigate();
@@ -83,21 +84,10 @@ function AgregarAdminSede() {
 
   const { isValid, touched, handleChangeWithTouch } = useLiveValidation(formData, getSchema());
 
-  const buildConditions = (fieldName) => {
-    const schema = getSchema();
-    if (!schema[fieldName]) return [];
-    const value = formData[fieldName];
-    return schema[fieldName].map((item) => {
-      const ruleFn = item.rule;
-      const message = item.message;
-      return { label: message, met: ruleFn(value) };
-    });
-  };
-
   const fieldsValidation = {};
   Object.keys(getSchema()).forEach((field) => {
     fieldsValidation[field] = {
-      conditions: buildConditions(field),
+      conditions: buildConditions(getSchema(), field, formData),
       isTouched: touched[field],
     };
   });

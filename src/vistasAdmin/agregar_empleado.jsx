@@ -11,6 +11,7 @@ import { VehiculosCreate } from "../servicies/API_Vehiculo";
 import { ModelosGetAll } from "../servicies/API_Modelo";
 import { SedesGetAll } from "../servicies/API_Sede";
 import useLiveValidation from "../hooks/useLiveValidation";
+import { buildConditions } from "../helpers/validation";
 import ReservationLimitFields from "../componentesAdmin/ReservationLimitFields";
 import "../componentesAdmin/ReservationLimitFields.css";
 import { parseReservationLimit } from "../helpers/reservationPolicy";
@@ -118,21 +119,10 @@ function AgregarEmpleado() {
 
   const { isValid, touched, handleChangeWithTouch } = useLiveValidation(formData, getSchema());
 
-  const buildConditions = (fieldName) => {
-    const schema = getSchema();
-    if (!schema[fieldName]) return [];
-    const value = formData[fieldName];
-    return schema[fieldName].map((item) => {
-      const ruleFn = item.rule;
-      const message = item.message;
-      return { label: message, met: ruleFn(value) };
-    });
-  };
-
   const fieldsValidation = {};
   Object.keys(getSchema()).forEach((field) => {
     fieldsValidation[field] = {
-      conditions: buildConditions(field),
+      conditions: buildConditions(getSchema(), field, formData),
       isTouched: touched[field],
     };
   });

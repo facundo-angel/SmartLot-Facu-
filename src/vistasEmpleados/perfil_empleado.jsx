@@ -17,6 +17,7 @@ import { VehiculosGetAll } from "../servicies/API_Vehiculo";
 import { ModelosGetAll } from "../servicies/API_Modelo";
 import { MarcasGetAll } from "../servicies/API_Marca";
 import useLiveValidation from "../hooks/useLiveValidation";
+import { buildConditions } from "../helpers/validation";
 
 import FormularioInfoPersonal from "../componentesEmpleado/formulario_info_personal";
 import FieldValidation from "../components/FieldValidation";
@@ -56,16 +57,6 @@ export default function PerfilEmpleado() {
   const { isValid, touched, getFieldProps } = useLiveValidation(personalData, validationSchema);
   const telefonoField = getFieldProps("telefono", setPersonalData);
   const contraseñaField = getFieldProps("contraseña", setPersonalData);
-
-  const buildConditions = (fieldName) => {
-    if (!validationSchema[fieldName]) return [];
-    const value = personalData[fieldName];
-    return validationSchema[fieldName].map((item) => {
-      const ruleFn = item.rule;
-      const message = item.message;
-      return { label: message, met: ruleFn(value) };
-    });
-  };
 
   const obtenerIdUsuario = (usr) => usr?.id ?? usr?.id_usuario ?? usr?._id;
 
@@ -375,7 +366,7 @@ export default function PerfilEmpleado() {
               data={personalData}
               onChange={handlePersonalChange}
               telefonoFieldValidation={{
-                conditions: buildConditions("telefono"),
+                conditions: buildConditions(validationSchema, "telefono", personalData),
                 isTouched: touched.telefono,
                 inputProps: telefonoField,
               }}
@@ -404,7 +395,7 @@ export default function PerfilEmpleado() {
                     onBlur={contraseñaField.onBlur}
                     autoComplete="new-password"
                   />
-                  <FieldValidation conditions={buildConditions("contraseña")} isTouched={touched.contraseña} />
+                  <FieldValidation conditions={buildConditions(validationSchema, "contraseña", personalData)} isTouched={touched.contraseña} />
                 </div>
               </div>
             </section>

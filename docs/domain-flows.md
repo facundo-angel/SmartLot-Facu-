@@ -87,7 +87,7 @@ Vistas: `vistasGaragista/garagista_dashboard.jsx` (rutas `/garagista_dashboard` 
 
 ## 7. Transversales
 
-- **Notificaciones**: campana en `componentesCompartidos/CampanaNotificaciones.jsx` + `hooks/useNotificaciones.js` + `API_Notificacion.js`; el dropdown invalida el prefijo `notificaciones:` al marcarse como leídas.
+- **Notificaciones**: campana compartida en `componentesCompartidos/CampanaNotificaciones.jsx` + `hooks/useNotificaciones.js` + `API_Notificacion.js`; se reutiliza en los headers de admin, superadmin, empleado y dueño de garage (los garagistas no la ven). El dropdown invalida el prefijo `notificaciones:` al marcarse como leídas.
 - **Auditoría**: `componentesCompartidos/AuditoriaPanel.jsx`.
 - **Estados vacíos**: toda pantalla con contenedores vacíos debe seguir la especificación `docs/estados-vacios.md` (componente `EmptyState.jsx`).
 - **Errores de usuario**: mensajes accionables en español desde `helpers/erroresMensajes.js`; nunca mostrar crudos del backend.

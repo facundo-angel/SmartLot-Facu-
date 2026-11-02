@@ -10,6 +10,7 @@ import { EmpresasGetAll } from "../servicies/API_Empresa";
 import { SedesGetAll } from "../servicies/API_Sede";
 import { GaragesGetAll } from "../servicies/API_Garage";
 import useLiveValidation from "../hooks/useLiveValidation";
+import { buildConditions } from "../helpers/validation";
 import FieldValidation from "../components/FieldValidation";
 import { showToast } from "../helpers/toast";
 import { RolesGetAll } from '../servicies/API_Rol';
@@ -169,17 +170,6 @@ function AgregarUsuario() {
 
   const { isValid, touched, handleChangeWithTouch } = useLiveValidation(formData, getSchema());
 
-  const buildConditions = (fieldName) => {
-    const schema = getSchema();
-    if (!schema[fieldName]) return [];
-    const value = formData[fieldName];
-    return schema[fieldName].map((item) => {
-      const ruleFn = item.rule;
-      const message = item.message;
-      return { label: message, met: ruleFn(value) };
-    });
-  };
-
   const handleGuardar = async () => {
     setError("");
 
@@ -276,7 +266,7 @@ function AgregarUsuario() {
                 autoComplete="off"
                 required
               />
-              <FieldValidation conditions={buildConditions("nombre")} isTouched={touched.nombre} />
+              <FieldValidation conditions={buildConditions(getSchema(), "nombre", formData)} isTouched={touched.nombre} />
             </div>
 
             <div className="agregar-usuario-field">
@@ -289,7 +279,7 @@ function AgregarUsuario() {
                 autoComplete="off"
                 required
               />
-              <FieldValidation conditions={buildConditions("apellido")} isTouched={touched.apellido} />
+              <FieldValidation conditions={buildConditions(getSchema(), "apellido", formData)} isTouched={touched.apellido} />
             </div>
 
             <div className="agregar-usuario-field">
@@ -302,7 +292,7 @@ function AgregarUsuario() {
                 autoComplete="off"
                 required
               />
-              <FieldValidation conditions={buildConditions("email")} isTouched={touched.email} />
+              <FieldValidation conditions={buildConditions(getSchema(), "email", formData)} isTouched={touched.email} />
             </div>
 
             <div className="agregar-usuario-field">
@@ -315,7 +305,7 @@ function AgregarUsuario() {
                 autoComplete="off"
                 required
               />
-              <FieldValidation conditions={buildConditions("telefono")} isTouched={touched.telefono} />
+              <FieldValidation conditions={buildConditions(getSchema(), "telefono", formData)} isTouched={touched.telefono} />
             </div>
 
             <div className="agregar-usuario-field">
@@ -333,7 +323,7 @@ function AgregarUsuario() {
               <p id="agregar-usuario-password-hint" className="agregar-usuario-field-hint">
                 8 caracteres, 2 especiales, 2 números y 2 mayúsculas.
               </p>
-              <FieldValidation conditions={buildConditions("contraseña")} isTouched={touched.contraseña} />
+              <FieldValidation conditions={buildConditions(getSchema(), "contraseña", formData)} isTouched={touched.contraseña} />
             </div>
 
             <div className="agregar-usuario-field">

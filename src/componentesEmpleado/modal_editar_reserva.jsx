@@ -5,6 +5,7 @@ import { Z_INDEX } from "../helpers/zIndex";
 import { ReservasUpdate, ReservasCancel } from "../servicies/API_Reserva";
 import ModalPortal from "../componentesCompartidos/ModalPortal";
 import useLiveValidation from "../hooks/useLiveValidation";
+import { buildConditions } from "../helpers/validation";
 import FieldValidation from "../components/FieldValidation";
 import "./modal_editar_reserva.css";
 
@@ -36,18 +37,6 @@ function ModalEditarReserva({ reservaRaw, reservaNorm, onClose, onActualizada, o
   const formData = { horaInicio, horaFin };
   const validationSchema = getSchema();
   const { isValid, touched, touch } = useLiveValidation(formData, validationSchema);
-
-  const buildConditions = (fieldName) => {
-    if (!validationSchema[fieldName]) return [];
-    const value = formData[fieldName];
-    return validationSchema[fieldName].map((item) => {
-      if (typeof item === "function") {
-        const result = item(value);
-        return { label: result.message, met: result.rule(value) };
-      }
-      return { label: item.message, met: item.rule(value) };
-    });
-  };
 
   const handleGuardar = useCallback(async () => {
     if (!isValid) {
@@ -170,7 +159,7 @@ function ModalEditarReserva({ reservaRaw, reservaNorm, onClose, onActualizada, o
                 autoComplete="off"
                 required
               />
-              <FieldValidation conditions={buildConditions("horaInicio")} isTouched={touched.horaInicio} />
+              <FieldValidation conditions={buildConditions(validationSchema, "horaInicio", formData)} isTouched={touched.horaInicio} />
             </div>
             <div className="modal-reserva-time-group">
               <label htmlFor="modal-hora-fin">Hora fin</label>
@@ -183,7 +172,7 @@ function ModalEditarReserva({ reservaRaw, reservaNorm, onClose, onActualizada, o
                 autoComplete="off"
                 required
               />
-              <FieldValidation conditions={buildConditions("horaFin")} isTouched={touched.horaFin} />
+              <FieldValidation conditions={buildConditions(validationSchema, "horaFin", formData)} isTouched={touched.horaFin} />
             </div>
           </div>
 

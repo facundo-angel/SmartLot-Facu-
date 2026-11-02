@@ -10,6 +10,7 @@ import { VehiculosCreate } from "../servicies/API_Vehiculo";
 import { ModelosGetAll } from "../servicies/API_Modelo";
 import { MarcasGetAll } from "../servicies/API_Marca";
 import useLiveValidation from "../hooks/useLiveValidation";
+import { buildConditions } from "../helpers/validation";
 import FieldValidation from "../components/FieldValidation";
 import "../componentesEmpleado/formulario_PerfilPersonal.css";
 import "../componentesEmpleado/formulario_vehiculo.css";
@@ -37,16 +38,6 @@ export default function AgregarVehiculo() {
   const autocompleteRef = useRef(null);
 
   const { touched } = useLiveValidation(formData, validationSchema);
-
-  const buildConditions = (fieldName) => {
-    if (!validationSchema[fieldName]) return [];
-    const value = formData[fieldName];
-    return validationSchema[fieldName].map((item) => {
-      const ruleFn = item.rule;
-      const message = item.message;
-      return { label: message, met: ruleFn(value) };
-    });
-  };
 
   useEffect(() => {
     async function cargarCatalogo() {
@@ -250,7 +241,7 @@ export default function AgregarVehiculo() {
                     autoComplete="off"
                     required
                   />
-                  <FieldValidation conditions={buildConditions("modelo")} isTouched={touched.modelo} />
+                  <FieldValidation conditions={buildConditions(validationSchema, "modelo", formData)} isTouched={touched.modelo} />
                   {mostrarSugerencias && sugerencias.length > 0 && (
                     <ul className="autocomplete-suggestions-panel" style={{ listStyle: "none", padding: 0, margin: 0, position: "absolute", width: "100%", zIndex: 100, background: "#fff", border: "1px solid #cbd5e1", borderRadius: "8px", maxHeight: "200px", overflowY: "auto" }}>
                       {sugerencias.map((item, index) => {
@@ -310,7 +301,7 @@ export default function AgregarVehiculo() {
                     autoComplete="off"
                     required
                   />
-                  <FieldValidation conditions={buildConditions("patente")} isTouched={touched.patente} />
+                  <FieldValidation conditions={buildConditions(validationSchema, "patente", formData)} isTouched={touched.patente} />
                 </div>
               </div>
 

@@ -1,9 +1,8 @@
 import { useState, useRef } from 'react';
-import { Autocomplete } from '@react-google-maps/api';
 import "./formulario_zona.css";
 import FieldValidation from "../components/FieldValidation";
+import UbicacionAutocomplete from "../components/UbicacionAutocomplete";
 import SelectorDiasOperativos from "./selector_dias_operativos";
-import { useGoogleMaps } from '../contexts/useGoogleMaps';
 
 function FormularioZona({
     formData,
@@ -12,26 +11,13 @@ function FormularioZona({
     fieldsValidation = {},
     onCoordenadasChange,
     hideSede = false,
-    ubicacionFija
+    ubicacionFija,
+    // Permite reutilizar el mismo formulario en el alta (numérico) y en la edición
+    // de zonas existentes, donde el nivel puede ser texto libre ("Subsuelo", "Piso 2").
+    pisoNumerico = true,
+    titulo = 'Informacion General',
+    descripcion = 'Define la identidad y ubicacion del nuevo garage.'
 }) {
-  const { isLoaded, loadError } = useGoogleMaps();
-  if (loadError) console.warn('formulario_zona: Google Maps no cargó:', loadError);
-
-  const autocompleteRef = useRef(null);
-
-  const handlePlaceChanged = () => {
-    const place = autocompleteRef.current.getPlace();
-    if (place?.geometry) {
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
-      const direccion = place.formatted_address || '';
-      onChange('ubicacion', direccion);
-      if (onCoordenadasChange) {
-        onCoordenadasChange({ lat, lng, direccion });
-      }
-    }
-  };
-
     const [isOpenSede, setIsOpenSede] = useState(false);
     const [es24Horas, setEs24Horas] = useState(false);
     const aperturaRef = useRef(null);
@@ -42,10 +28,8 @@ function FormularioZona({
     return (
         <div className="formulario-zona">
             <div className="header-formulario-zona">
-                <h3>Informacion General</h3>
-                <p>
-                    Define la identidad y ubicacion del nuevo garage.
-                </p>
+                <h3>{titulo}</h3>
+                <p>{descripcion}</p>
             </div>
 
             <div className="bloque-formulario-zona">
@@ -67,10 +51,10 @@ function FormularioZona({
                      <div className="fila-inputs">
                     <div className="inputNivelPlanta input-group">
                         <input
-                            type="number"
+                            type={pisoNumerico ? "number" : "text"}
                             placeholder=" "
                             value={formData.piso ?? ''}
-                            onChange={(e) => onChange('piso', e.target.value === '' ? '' : e.target.value)}
+                            onChange={(e) => onChange('piso', pisoNumerico ? (e.target.value === '' ? '' : e.target.value) : e.target.value)}
                             autoComplete="off"
                             required
                         />
@@ -130,27 +114,12 @@ function FormularioZona({
                             autoComplete="off"
                             aria-readonly="true"
                         />
-                    ) : isLoaded ? (
-                        <Autocomplete
-                            onLoad={(autocomplete) => { autocompleteRef.current = autocomplete; }}
-                            onPlaceChanged={handlePlaceChanged}
-                        >
-                            <input
-                                type="text"
-                                placeholder=" "
-                                value={formData.ubicacion || ''}
-                                onChange={(e) => onChange('ubicacion', e.target.value)}
-                                autoComplete="off"
-                                required
-                            />
-                        </Autocomplete>
                     ) : (
-                        <input
-                            type="text"
+                        <UbicacionAutocomplete
+                            value={formData.ubicacion}
+                            onChange={(value) => onChange('ubicacion', value)}
+                            onPlaceSelect={onCoordenadasChange}
                             placeholder=" "
-                            value={formData.ubicacion || ''}
-                            onChange={(e) => onChange('ubicacion', e.target.value)}
-                            autoComplete="off"
                             required
                         />
                     )}
