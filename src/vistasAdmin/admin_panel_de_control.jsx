@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -19,32 +19,14 @@ import TablaConflictos, { ConflictsTableSkeleton } from "../componentesCompartid
 import { obtenerIdUsuario } from "../componentesCompartidos/utilConflictos";
 import ToastUndo from "../componentesShared/ToastUndo";
 import TablaReservasPanleControl from "../componentesAdmin/tabla_reservas_panelControl";
-import {
-  ConflictosCreate,
-  ConflictosDelete,
-  ConflictosGetAll,
-  ConflictosGetPapelera,
-  ConflictosRestore,
-  ConflictosUpdate
-} from "../servicies/API_Conflicto";
-import { UsuariosGetAll } from "../servicies/API_Usuario";
-import { GaragesGetAll } from "../servicies/API_Garage";
+import { crearScopeConflictos, filtrarConflictos, ordenarConflictos } from "../helpers/conflictos";
+import useConflictos from "../hooks/useConflictos";
+import useStaleIndicator from "../hooks/useStaleIndicator";
+import { ConflictosCreate } from "../servicies/API_Conflicto";
 import { useAuth } from '../contexts/useAuth';
 
 const MAX_PALABRAS = 300;
 const contarPalabras = (texto) => (texto || "").trim().split(/\s+/).filter(Boolean).length;
-
-const obtenerListado = (datos) => {
-  if (Array.isArray(datos)) return datos;
-  if (Array.isArray(datos?.datos)) return datos.datos;
-  if (Array.isArray(datos?.data)) return datos.data;
-  if (Array.isArray(datos?.conflictos)) return datos.conflictos;
-  if (Array.isArray(datos?.usuarios)) return datos.usuarios;
-  return [];
-};
-
-const obtenerIdEmpresa = (item) => item?.id_empresa ?? item?.idEmpresa ?? item?.empresa_id ?? item?.empresaId;
-const obtenerIdSede = (item) => item?.id_sede ?? item?.idSede ?? item?.sede_id ?? item?.sedeId;
 
 const PanelStatsSkeleton = () => (
   <section className="panel-stats-card panel-stats--skeleton" aria-label="Cargando ocupacion total">
@@ -57,53 +39,10 @@ const PanelStatsSkeleton = () => (
   </section>
 );
 
-const getAdminConflictScope = (usuario) => {
-  const idSede = obtenerIdSede(usuario);
-  const idEmpresa = obtenerIdEmpresa(usuario);
-  const idUsuario = obtenerIdUsuario(usuario);
-
-  return {
-    idSede,
-    idEmpresa,
-    idUsuario,
-    scopeKey: idSede
-      ? 'sede:' + idSede
-      : idEmpresa
-        ? 'empresa:' + idEmpresa
-      : 'usuario:' + (idUsuario || 'unknown'),
-  };
-};
-
-const perteneceAlTenantAdmin = (conflicto, usuariosPorId, scope) => {
-  const conflictoEmpresa = obtenerIdEmpresa(conflicto);
-  const conflictoSede = obtenerIdSede(conflicto);
-  const usuarioConflicto = usuariosPorId.get(Number(obtenerIdUsuario(conflicto)));
-  const usuarioEmpresa = obtenerIdEmpresa(usuarioConflicto);
-  const usuarioSede = obtenerIdSede(usuarioConflicto);
-
-  if (scope.idSede) {
-    return Number(conflictoSede || usuarioSede) === Number(scope.idSede);
-  }
-
-  if (scope.idEmpresa) {
-    return Number(conflictoEmpresa || usuarioEmpresa) === Number(scope.idEmpresa);
-  }
-
-  return false;
-};
-
 export default function AdminPanelControl() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
-  const [conflictos, setConflictos] = useState([]);
-  const [papelera, setPapelera] = useState([]);
-  const [usuarios, setUsuarios] = useState([]);
-  const [garagesList, setGaragesList] = useState([]);
-  const [loadingConflictos, setLoadingConflictos] = useState(true);
-  const [errorConflictos, setErrorConflictos] = useState("");
-  const [actualizandoId, setActualizandoId] = useState(null);
   const [mostrarPapelera, setMostrarPapelera] = useState(false);
-  const [cargandoPapelera, setCargandoPapelera] = useState(false);
   const [modalSoporteOpen, setModalSoporteOpen] = useState(false);
   const [nuevoConflicto, setNuevoConflicto] = useState({ descripcion: "", prioridad: "Media" });
   const [enviandoConflicto, setEnviandoConflicto] = useState(false);
@@ -111,186 +50,49 @@ export default function AdminPanelControl() {
   const [busquedaConflictos, setBusquedaConflictos] = useState("");
   const [toast, setToast] = useState(null);
   const [compactMode, setCompactMode] = useState(true);
-  const [ultimaActualizacion, setUltimaActualizacion] = useState(null);
-  const [conflictosResolviendo, setConflictosResolviendo] = useState(() => new Set());
   const toastKeyRef = useRef(0);
-  const [tiempoTranscurrido, setTiempoTranscurrido] = useState("");
-  const [isStale, setIsStale] = useState(false);
 
   const mostrarToast = (mensaje, onDeshacer) => {
     toastKeyRef.current += 1;
     setToast({ id: toastKeyRef.current, mensaje, onDeshacer });
   };
 
-  useEffect(() => {
-    if (!ultimaActualizacion) return;
-    const update = () => {
-      const segs = Math.floor((Date.now() - ultimaActualizacion) / 1000);
-      if (segs < 60) {
-        setTiempoTranscurrido(`Actualizado hace ${segs}s`);
-      } else {
-        setTiempoTranscurrido(`Actualizado hace ${Math.floor(segs / 60)}m`);
-      }
-      setIsStale(segs > 300);
-    };
-    update();
-    const interval = setInterval(update, 10000);
-    return () => clearInterval(interval);
-  }, [ultimaActualizacion]);
+  const conflictScope = useMemo(() => crearScopeConflictos(usuario), [usuario]);
 
-  const conflictScope = useMemo(() => getAdminConflictScope(usuario), [usuario]);
+  const {
+    conflictosTenant,
+    papeleraTenant,
+    usuariosPorId,
+    garagesList,
+    pendientes,
+    loadingConflictos,
+    errorConflictos,
+    actualizandoId,
+    cargandoPapelera,
+    conflictosResolviendo,
+    ultimaActualizacion,
+    cargarPapelera,
+    cambiarEstado,
+    eliminar,
+    restaurar,
+    limpiarError,
+  } = useConflictos(conflictScope, {
+    usuario,
+    onToast: mostrarToast,
+    onRestaurado: () => setMostrarPapelera(false),
+  });
 
-  const cargarPapelera = useCallback(async ({ force = false } = {}) => {
-    setCargandoPapelera(true);
-    const papeleraResponse = await ConflictosGetPapelera({ superAdmin: false, force, ...conflictScope });
-    if (papeleraResponse.respuesta) {
-      setPapelera(obtenerListado(papeleraResponse.datos));
-    } else {
-      setErrorConflictos("No se pudo cargar la papelera.");
-    }
-    setCargandoPapelera(false);
-  }, [conflictScope]);
-
-  useEffect(() => {
-    let montado = true;
-
-    const cargarDatos = async () => {
-      setLoadingConflictos(true);
-      setErrorConflictos("");
-
-      try {
-        const [conflictosResponse, papeleraResponse, usuariosResponse, garagesResponse] = await Promise.all([
-          ConflictosGetAll({ superAdmin: false, ...conflictScope }),
-          ConflictosGetPapelera({ superAdmin: false, ...conflictScope }),
-          UsuariosGetAll(),
-          GaragesGetAll(),
-        ]);
-
-        if (!montado) return;
-
-        const adminIdSede = Number(usuario?.id_sede);
-        const empresaAdmin = Number(usuario?.id_empresa);
-        const tieneEmpresa = !isNaN(empresaAdmin) && empresaAdmin > 0;
-
-        if (usuariosResponse.respuesta) {
-          const usuariosList = obtenerListado(usuariosResponse.datos);
-
-          let usuariosFiltrados = usuariosList;
-          if (adminIdSede) {
-            usuariosFiltrados = usuariosList.filter((u) => Number(u.id_sede ?? u.idSede) === adminIdSede);
-          } else if (tieneEmpresa) {
-            usuariosFiltrados = usuariosList.filter((u) => Number(u.id_empresa ?? u.idEmpresa) === empresaAdmin);
-          }
-
-          const userIdsSet = new Set(usuariosFiltrados.map((u) => Number(obtenerIdUsuario(u))));
-
-          setUsuarios(usuariosFiltrados);
-
-          if (conflictosResponse.respuesta) {
-            const allConflictos = obtenerListado(conflictosResponse.datos);
-            setConflictos(allConflictos.filter((c) => userIdsSet.has(Number(obtenerIdUsuario(c)))));
-          } else {
-            setErrorConflictos("No se pudieron cargar los conflictos.");
-          }
-
-          if (papeleraResponse.respuesta) {
-            const allPapelera = obtenerListado(papeleraResponse.datos);
-            setPapelera(allPapelera.filter((p) => userIdsSet.has(Number(obtenerIdUsuario(p)))));
-          }
-        } else {
-          if (conflictosResponse.respuesta) {
-            setConflictos(obtenerListado(conflictosResponse.datos));
-          } else {
-            setErrorConflictos("No se pudieron cargar los conflictos.");
-          }
-
-          if (papeleraResponse.respuesta) {
-            setPapelera(obtenerListado(papeleraResponse.datos));
-          }
-        }
-
-        const garArray = obtenerListado(garagesResponse.datos);
-
-        // El listado de garages ya está aislado por los tratos del tenant en la API.
-        setGaragesList(garArray);
-      } catch (error) {
-        console.error("Error al cargar datos:", error);
-        if (montado) setErrorConflictos("Ocurrio un error al cargar los datos.");
-      } finally {
-        if (montado) {
-          setLoadingConflictos(false);
-          setUltimaActualizacion(Date.now());
-        }
-      }
-    };
-
-    cargarDatos();
-
-    return () => {
-      montado = false;
-    };
-  }, [usuario, conflictScope]);
-
-  const usuariosPorId = useMemo(
-    () => new Map(usuarios.map((usuario) => [Number(usuario.id ?? usuario.id_usuario), usuario])),
-    [usuarios]
-  );
-
-  const conflictosTenant = useMemo(
-    () => conflictos.filter((conflicto) => perteneceAlTenantAdmin(conflicto, usuariosPorId, conflictScope)),
-    [conflictos, usuariosPorId, conflictScope]
-  );
-
-  const papeleraTenant = useMemo(
-    () => papelera.filter((conflicto) => perteneceAlTenantAdmin(conflicto, usuariosPorId, conflictScope)),
-    [papelera, usuariosPorId, conflictScope]
-  );
-
-  const conflictosOrdenados = useMemo(() => {
-    const pesoEstado = { Pendiente: 0, "En Proceso": 1, Resuelto: 2 };
-    const pesoPrioridad = { Alta: 0, Media: 1, Baja: 2 };
-
-    return [...conflictosTenant].sort((a, b) => {
-      const estadoDiff = (pesoEstado[a.estado] ?? 9) - (pesoEstado[b.estado] ?? 9);
-      if (estadoDiff !== 0) return estadoDiff;
-
-      const prioridadDiff = (pesoPrioridad[a.prioridad] ?? 9) - (pesoPrioridad[b.prioridad] ?? 9);
-      if (prioridadDiff !== 0) return prioridadDiff;
-
-      return new Date(b.fecha_creacion || 0) - new Date(a.fecha_creacion || 0);
-    });
-  }, [conflictosTenant]);
-
-  const filtrarConflictos = useCallback((items) => {
-    const query = busquedaConflictos.trim().toLowerCase();
-    if (!query) return items;
-
-    return items.filter((conflicto) => {
-      const usuarioConflicto = usuariosPorId.get(Number(obtenerIdUsuario(conflicto)));
-      const nombreUsuario = usuarioConflicto
-        ? `${usuarioConflicto.nombre || ""} ${usuarioConflicto.apellido || ""} ${usuarioConflicto.email || ""}`
-        : "";
-      return [
-        nombreUsuario,
-        conflicto.descripcion,
-        conflicto.prioridad,
-        conflicto.estado,
-        obtenerIdUsuario(conflicto),
-      ].some((valor) => String(valor || "").toLowerCase().includes(query));
-    });
-  }, [busquedaConflictos, usuariosPorId]);
+  const { tiempoTranscurrido, isStale } = useStaleIndicator(ultimaActualizacion);
 
   const conflictosVisibles = useMemo(
-    () => filtrarConflictos(conflictosOrdenados),
-    [conflictosOrdenados, filtrarConflictos]
+    () => filtrarConflictos(ordenarConflictos(conflictosTenant), busquedaConflictos, usuariosPorId),
+    [conflictosTenant, busquedaConflictos, usuariosPorId]
   );
 
   const papeleraVisible = useMemo(
-    () => filtrarConflictos(papeleraTenant),
-    [papeleraTenant, filtrarConflictos]
+    () => filtrarConflictos(papeleraTenant, busquedaConflictos, usuariosPorId),
+    [papeleraTenant, busquedaConflictos, usuariosPorId]
   );
-
-  const pendientes = conflictosTenant.filter((conflicto) => conflicto.estado !== "Resuelto").length;
 
   const ocupacion = useMemo(() => {
     let totalOcupados = 0;
@@ -306,58 +108,6 @@ export default function AdminPanelControl() {
     const pct = totalCapacidad > 0 ? Math.round((totalOcupados / totalCapacidad) * 100) : 0;
     return { porcentaje: pct, ocupados: totalOcupados, capacidad: totalCapacidad };
   }, [garagesList]);
-
-  const handleCambiarEstado = async (conflicto, estado) => {
-    const estadoAnterior = conflicto.estado;
-    if (estadoAnterior === estado) return;
-    setActualizandoId(conflicto.id);
-    const payload = {
-      id_usuario: obtenerIdUsuario(conflicto),
-      descripcion: conflicto.descripcion,
-      prioridad: conflicto.prioridad,
-      estado,
-      SuperAdmin: conflicto.SuperAdmin === true,
-    };
-
-    const resultado = await ConflictosUpdate(conflicto.id, payload);
-    if (resultado.respuesta) {
-      if (estado === "Resuelto") {
-        const resultadoEliminar = await ConflictosDelete(conflicto.id);
-        if (resultadoEliminar.respuesta) {
-          setConflictosResolviendo((prev) => new Set(prev).add(conflicto.id));
-          await new Promise((resolve) => setTimeout(resolve, 520));
-          setConflictos((prev) => prev.filter((item) => item.id !== conflicto.id));
-          setConflictosResolviendo((prev) => {
-            const next = new Set(prev);
-            next.delete(conflicto.id);
-            return next;
-          });
-          await cargarPapelera({ force: true });
-          mostrarToast("Conflicto resuelto y enviado a papelera", async () => {
-            const restaurado = await ConflictosRestore(conflicto.id);
-            if (!restaurado.respuesta) return;
-
-            const revert = await ConflictosUpdate(conflicto.id, { ...payload, estado: estadoAnterior });
-            const conflictoRestaurado = revert.respuesta ? revert.datos : restaurado.datos;
-            setPapelera((prev) => prev.filter((item) => item.id !== conflicto.id));
-            setConflictos((prev) => [conflictoRestaurado, ...prev.filter((item) => item.id !== conflicto.id)]);
-            await cargarPapelera({ force: true });
-          });
-        } else {
-          setConflictos((prev) => prev.map((item) => item.id === conflicto.id ? resultado.datos : item));
-        }
-      } else {
-        setConflictos((prev) => prev.map((item) => item.id === conflicto.id ? resultado.datos : item));
-        mostrarToast(`Estado cambiado a "${estado}"`, async () => {
-          const revert = await ConflictosUpdate(conflicto.id, { ...payload, estado: estadoAnterior });
-          if (revert.respuesta) {
-            setConflictos((prev) => prev.map((item) => item.id === conflicto.id ? revert.datos : item));
-          }
-        });
-      }
-    }
-    setActualizandoId(null);
-  };
 
   const handleCrearConflictoSuperadmin = async (event) => {
     event.preventDefault();
@@ -380,7 +130,7 @@ export default function AdminPanelControl() {
     }
 
     setEnviandoConflicto(true);
-    setErrorConflictos("");
+    limpiarError();
     setMensajeSoporte(null);
     const resultado = await ConflictosCreate({
       id_usuario: idUsuario,
@@ -410,32 +160,6 @@ export default function AdminPanelControl() {
     setModalSoporteOpen(false);
     setNuevoConflicto({ descripcion: "", prioridad: "Media" });
     setMensajeSoporte(null);
-  };
-
-  const handleEliminar = async (id) => {
-    setActualizandoId(id);
-    const resultado = await ConflictosDelete(id);
-    if (resultado.respuesta) {
-      const conflictoEliminado = conflictos.find((c) => c.id === id);
-      setConflictos((prev) => prev.filter((item) => item.id !== id));
-      await cargarPapelera({ force: true });
-      mostrarToast("Conflicto eliminado", () => {
-        if (conflictoEliminado) handleRestaurar(id);
-      });
-    }
-    setActualizandoId(null);
-  };
-
-  const handleRestaurar = async (id) => {
-    setActualizandoId(id);
-    const resultado = await ConflictosRestore(id);
-    if (resultado.respuesta) {
-      setPapelera((prev) => prev.filter((item) => item.id !== id));
-      setConflictos((prev) => [resultado.datos, ...prev.filter((item) => item.id !== id)]);
-      setMostrarPapelera(false);
-      await cargarPapelera({ force: true });
-    }
-    setActualizandoId(null);
   };
 
   const handleMostrarPapelera = () => {
@@ -579,7 +303,7 @@ export default function AdminPanelControl() {
               compactMode={compactMode}
               encabezadoUsuario="Empleado"
               modoPapelera
-              onRestaurar={handleRestaurar}
+              onRestaurar={restaurar}
             />
           )
         ) : conflictosVisibles.length === 0 ? (
@@ -609,8 +333,8 @@ export default function AdminPanelControl() {
             compactMode={compactMode}
             encabezadoUsuario="Empleado"
             resaltarUrgentes
-            onCambiarEstado={handleCambiarEstado}
-            onEliminar={handleEliminar}
+            onCambiarEstado={cambiarEstado}
+            onEliminar={eliminar}
           />
         )}
 

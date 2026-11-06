@@ -2,7 +2,7 @@ import { normalizeReservaDateTime, formatReservaDate, formatReservaMonth, format
 import { createReservaRefresh, bindReservaPolling } from '../helpers/reservaRefresh';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircleQuestion, X, CalendarPlus } from "lucide-react";
+import { MessageCircleQuestion, CalendarPlus } from "lucide-react";
 import "./empleados_dashboard.css";
 import EmptyState from "../componentesCompartidos/EmptyState";
 import HeaderEmpleado from "../componentesEmpleado/header_empleado";
@@ -19,6 +19,8 @@ import { useAuth } from "../contexts/useAuth";
 import FooterEmpleado from "../componentesEmpleado/footer_empleado";
 import FormularioDetallesVehiculo from "../componentesEmpleado/formulario_detalles_vehiculo";
 import ModalQrReserva from "../componentesEmpleado/ModalQrReserva";
+import { EmpleadoDashboardIntroSkeleton, EmpleadoReservasSkeleton } from "../componentesEmpleado/empleados_dashboard_skeleton";
+import ModalReporteEmpleado from "../componentesEmpleado/modal_reporte_empleado";
 import { obtenerTipoQrReserva, puedeMostrarQrReserva } from "../helpers/qrReserva";
 
 
@@ -248,14 +250,6 @@ const normalizarReserva = (reserva, vehiculosPorId, garagesPorId, modelosPorId, 
   };
 };
 
-const EmpleadoDashboardIntroSkeleton = () => (
-  <div className="empleado-dashboard-intro empleado-dashboard-intro-skeleton" aria-label="Cargando datos del empleado">
-    <span className="empleado-skeleton-line empleado-skeleton-kicker" />
-    <span className="empleado-skeleton-line empleado-skeleton-title" />
-    <span className="empleado-skeleton-line empleado-skeleton-subtitle" />
-  </div>
-);
-
 const EmpleadoDisponibilidadSkeleton = () => (
   <section className="empleado-disponibilidad-card empleado-disponibilidad-skeleton" aria-label="Cargando disponibilidad">
     <div className="empleado-disponibilidad-top">
@@ -275,23 +269,6 @@ const EmpleadoDisponibilidadSkeleton = () => (
   </section>
 );
 
-const EmpleadoReservasSkeleton = () => (
-  <div className="empleado-reservas-skeleton-list" aria-label="Cargando reservas">
-    {Array.from({ length: 1 }).map((_, index) => (
-      <section className="empleado-reservas-section" key={index}>
-        <article className="empleado-reserva-card empleado-reserva-card-skeleton">
-          <span className="empleado-skeleton-block empleado-skeleton-reserva-plaza" />
-          <div className="empleado-skeleton-reserva-info">
-            <span className="empleado-skeleton-line empleado-skeleton-reserva-title" />
-            <span className="empleado-skeleton-line empleado-skeleton-reserva-text" />
-          </div>
-          <span className="empleado-skeleton-block empleado-skeleton-reserva-action" />
-        </article>
-      </section>
-    ))}
-  </div>
-);
-  
 function EmpleadoDashboard() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
@@ -782,60 +759,18 @@ function EmpleadoDashboard() {
       <FooterEmpleado />
 
       {modalReporteOpen && (
-        <div className="empleado-reporte-overlay" role="presentation" onMouseDown={cerrarModalReporte}>
-          <section
-            className="empleado-reporte-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="empleado-reporte-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="empleado-reporte-header">
-              <div>
-                <span>Soporte</span>
-                <h2 id="empleado-reporte-title">Reportar problema</h2>
-              </div>
-              <button type="button" className="empleado-reporte-close" onClick={cerrarModalReporte} aria-label="Cerrar reporte">
-                <X size={20} />
-              </button>
-            </div>
-
-            <form className="empleado-reporte-form" onSubmit={handleEnviarReporte}>
-              <label className="empleado-reporte-field">
-                <span>Prioridad</span>
-                <select value={prioridadReporte} onChange={(event) => setPrioridadReporte(event.target.value)}>
-                  <option value="Baja">Baja</option>
-                  <option value="Media">Media</option>
-                  <option value="Alta">Alta</option>
-                </select>
-              </label>
-
-              <label className="empleado-reporte-field">
-                <span>Descripcion</span>
-                <textarea
-                  value={descripcionReporte}
-                  onChange={(event) => setDescripcionReporte(event.target.value)}
-                  placeholder="Contanos que paso"
-                  rows={5}
-                  maxLength={3000}
-                />
-                <span className={`empleado-reporte-wordcount ${contarPalabras(descripcionReporte) > MAX_PALABRAS ? "empleado-reporte-wordcount--exceeded" : ""}`}>
-                  {contarPalabras(descripcionReporte)}/{MAX_PALABRAS} palabras
-                </span>
-              </label>
-
-              {mensajeReporte && (
-                <div className={`empleado-reporte-feedback empleado-reporte-feedback--${mensajeReporte.tipo}`} role="alert">
-                  {mensajeReporte.texto}
-                </div>
-              )}
-
-              <button type="submit" className="empleado-reporte-submit" disabled={enviandoReporte || mensajeReporte?.tipo === "success"}>
-                {enviandoReporte ? "Enviando..." : "Enviar reporte"}
-              </button>
-            </form>
-          </section>
-        </div>
+        <ModalReporteEmpleado
+          prioridad={prioridadReporte}
+          descripcion={descripcionReporte}
+          enviando={enviandoReporte}
+          mensaje={mensajeReporte}
+          maxPalabras={MAX_PALABRAS}
+          contarPalabras={contarPalabras}
+          onPrioridadChange={setPrioridadReporte}
+          onDescripcionChange={setDescripcionReporte}
+          onSubmit={handleEnviarReporte}
+          onClose={cerrarModalReporte}
+        />
       )}
 
       {reservaEditando && reservaNormEditando && (

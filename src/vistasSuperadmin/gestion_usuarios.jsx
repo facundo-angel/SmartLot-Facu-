@@ -4,20 +4,8 @@ import {
   Search,
   UserPlus,
   ArrowLeft,
-  LogIn,
-  ChevronDown,
-  X,
   Archive,
-  RotateCcw,
-  Trash2,
-  MapPin,
-  Building2,
-  Car,
-  ShieldCheck,
-  Check,
   Inbox,
-  Filter, // <-- Nuevo icono
-  SlidersHorizontal // <-- Nuevo icono
 } from "lucide-react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
@@ -31,13 +19,23 @@ import "./gestion_usuarios.css";
 import HeaderSuperadmin from "../componentesSuperadmin/header_superadmin";
 import FooterSuperadmin from "../componentesSuperadmin/footer_superadmin";
 import BotonGenerico from "../componentesAdmin/boton_generico";
-import ModalPortal from "../componentesCompartidos/ModalPortal";
 import EmptyState from "../componentesCompartidos/EmptyState";
 import AuditoriaPanel from "../componentesCompartidos/AuditoriaPanel";
+import UsuarioCard, { UserCardSkeleton } from "../componentesSuperadmin/gestion_usuarios/usuario_card";
+import UsuariosToolbar from "../componentesSuperadmin/gestion_usuarios/usuarios_toolbar";
+import ModalArchivados from "../componentesSuperadmin/gestion_usuarios/modal_archivados";
+import ModalSolicitudes from "../componentesSuperadmin/gestion_usuarios/modal_solicitudes";
+import ModalGaragesUsuario from "../componentesSuperadmin/gestion_usuarios/modal_garages_usuario";
+import { ROLE_ORDER } from "../componentesSuperadmin/gestion_usuarios/constantes";
+import {
+  crearEventosAuditoriaUsuario,
+  normalizarUsuario,
+  obtenerListado,
+  obtenerOpcionesUnicas,
+} from "../componentesSuperadmin/gestion_usuarios/helpers";
 import {
   UsuariosGetAll,
   UsuariosGetAuditoria,
-  UsuariosGetById,
   UsuariosDelete,
   UsuariosPatchEstado,
   UsuariosImpersonate,
@@ -51,144 +49,15 @@ import {
   SolicitudesRegistroRechazar,
 } from "../servicies/API_SolicitudRegistro";
 import { getUserHomeRoute } from '../helpers/roles';
-import { getUsuarioGarageIds, mergeUsuariosById } from '../helpers/usuarios';
+import { mergeUsuariosById } from '../helpers/usuarios';
 
 gsap.registerPlugin(useGSAP);
-
-const obtenerListado = (datos) => {
-  if (Array.isArray(datos)) return datos;
-  if (Array.isArray(datos?.datos)) return datos.datos;
-  if (Array.isArray(datos?.data)) return datos.data;
-  if (Array.isArray(datos?.usuarios)) return datos.usuarios;
-  return [];
-};
-
-const ROLE_LABELS = {
-  1: "Admin",
-  2: "Empleado",
-  3: "Garagista",
-  4: "Superadmin",
-  5: "Dueño de garage",
-};
-
-const ROLE_CLASSES = {
-  1: "role-admin",
-  2: "role-empleado",
-  3: "role-garagista",
-  4: "role-superadmin",
-  5: "role-duenio-garage",
-};
-
-const ROLE_ORDER = [4, 5, 1, 3, 2];
-
-const obtenerActorAuditoria = (item, tipo) => {
-  const nombre = item?.[`${tipo}ByNombre`]?.trim?.();
-  const email = item?.[`${tipo}ByEmail`];
-  return nombre || email || "Usuario no disponible";
-};
-
-const crearEventosAuditoriaUsuario = (items) =>
-  items
-    .flatMap((item) => {
-      const nombreUsuario = `${item.nombre || ""} ${item.apellido || ""}`.trim() || item.email || `Usuario ${item.id}`;
-      const eventos = [];
-      if (item.UpdateAt) {
-        eventos.push({
-          id: `${item.id}-update-${item.UpdateAt}`,
-          accion: "Editado",
-          clase: "update",
-          entidad: nombreUsuario,
-          actor: obtenerActorAuditoria(item, "Update"),
-          fecha: item.UpdateAt,
-        });
-      }
-      if (item.DeleteAt || item.Borrado === true) {
-        eventos.push({
-          id: `${item.id}-delete-${item.DeleteAt || "deleted"}`,
-          accion: "Borrado",
-          clase: "delete",
-          entidad: nombreUsuario,
-          actor: obtenerActorAuditoria(item, "Delete"),
-          fecha: item.DeleteAt,
-        });
-      }
-      return eventos;
-    })
-    .sort((a, b) => new Date(b.fecha || 0) - new Date(a.fecha || 0));
-
-const obtenerOpcionesUnicas = (items, selector) =>
-  Array.from(new Set(items.flatMap((item) => {
-    const value = selector(item);
-    return Array.isArray(value) ? value : [value];
-  }).filter(Boolean))).sort((a, b) =>
-    a.localeCompare(b, "es", { sensitivity: "base" })
-  );
-
-function UserCardSkeleton() {
-  return (
-    <article className="usuario-card usuario-card-skeleton" aria-label="Cargando usuario">
-      <div className="usuario-card-top">
-        <span className="skeleton-line skeleton-usuario-avatar" />
-        <div className="usuario-info skeleton-usuario-info">
-          <span className="skeleton-line skeleton-usuario-name" />
-          <span className="skeleton-line skeleton-usuario-role" />
-        </div>
-      </div>
-
-      <div className="usuario-card-body">
-        <span className="skeleton-line skeleton-usuario-email" />
-        <span className="skeleton-line skeleton-usuario-phone" />
-        <div className="usuario-metas">
-          <span className="skeleton-line skeleton-usuario-meta" />
-          <span className="skeleton-line skeleton-usuario-meta short" />
-        </div>
-      </div>
-
-      <div className="usuario-card-footer skeleton-usuario-footer">
-        <span className="skeleton-line skeleton-usuario-status" />
-        <div className="usuario-actions">
-          <span className="skeleton-line skeleton-usuario-login" />
-          <span className="skeleton-line skeleton-usuario-action" />
-        </div>
-      </div>
-    </article>
-  );
-}
-
-const normalizarUsuario = (usuario, empresaMap, sedeMap, garageMap) => {
-  const id = usuario.id ?? usuario.id_usuario ?? usuario._id;
-  const nombreEmpresa = empresaMap[Number(usuario.id_empresa)] || null;
-  const nombreSede = sedeMap[Number(usuario.id_sede)] || null;
-  const idGarages = getUsuarioGarageIds(usuario);
-  const nombresGarages = idGarages.map((idGarage) => garageMap[idGarage]).filter(Boolean);
-
-  return {
-    id,
-    id_empresa: !isNaN(Number(usuario.id_empresa)) ? Number(usuario.id_empresa) : null,
-    id_sede: usuario.id_sede ?? null,
-    id_garage: idGarages[0] ?? null,
-    id_garages: idGarages,
-    nombre: `${usuario.nombre || ""} ${usuario.apellido || ""}`.trim() || "Usuario sin nombre",
-    email: usuario.email || "Sin email",
-    telefono: usuario.telefono || "",
-    id_rol: Number(usuario.id_rol),
-    role: ROLE_LABELS[Number(usuario.id_rol)] || "Desconocido",
-    empresa: nombreEmpresa,
-    sede: nombreSede,
-    garage: nombresGarages[0] ?? null,
-    garages: nombresGarages,
-    activo: usuario.activo !== false,
-  };
-};
 
 const GestionUsuarios = () => {
   const navigate = useNavigate();
   const containerRef = useRef(null);
-  const dropdownRef = useRef(null); // Ref para el panel desplegable de filtros
-  const buttonFilterRef = useRef(null); // Ref para el botón de filtros
 
   const [usuarios, setUsuarios] = useState([]);
-  const [empresaMap, setEmpresaMap] = useState({});
   const [sedeMap, setSedeMap] = useState({});
   const [garageMap, setGarageMap] = useState({});
   const [auditoria, setAuditoria] = useState([]);
@@ -209,25 +78,7 @@ const GestionUsuarios = () => {
   const [showSolicitudes, setShowSolicitudes] = useState(false);
   const [searchSolicitudesTerm, setSearchSolicitudesTerm] = useState("");
   const [resolviendoSolicitud, setResolviendoSolicitud] = useState(null);
-  const [showFilters, setShowFilters] = useState(false); // Estado para abrir/cerrar filtros
   const { usuario, setUsuario, setRoleTransition } = useAuth();
-
-  // Detectar clics fuera del panel de filtros para cerrarlo automáticamente
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        showFilters &&
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target) &&
-        buttonFilterRef.current &&
-        !buttonFilterRef.current.contains(event.target)
-      ) {
-        setShowFilters(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showFilters]);
 
   // Contabilizamos cuántos filtros secundarios hay activos
   const activeFiltersCount = [selectedEmpresa, selectedSede, selectedGarage].filter(Boolean).length;
@@ -277,7 +128,6 @@ const GestionUsuarios = () => {
           if (id != null) gMap[Number(id)] = g.nombre || g.name || g.descripcion || g.ubicacion || g.nombre_garage || g.garage_nombre || "Garage";
         });
 
-        setEmpresaMap(eMap);
         setSedeMap(sMap);
         setGarageMap(gMap);
         setUsuarios(mergeUsuariosById(usuariosRaw).map((u) => normalizarUsuario(u, eMap, sMap, gMap)));
@@ -324,19 +174,11 @@ const GestionUsuarios = () => {
     if (!usuRes.respuesta) return;
     const empresas = empRes.respuesta ? obtenerListado(empRes.datos) : [];
     const eMap = Object.fromEntries(empresas.map((e) => [Number(e.id), e.nombre]));
-    setEmpresaMap(eMap);
     setUsuarios(
       mergeUsuariosById(obtenerListado(usuRes.datos)).map((u) =>
         normalizarUsuario(u, eMap, sedeMap, garageMap)
       )
     );
-  };
-
-  const formatearFechaSolicitud = (valor) => {
-    if (!valor) return "fecha desconocida";
-    const fecha = new Date(valor);
-    if (Number.isNaN(fecha.getTime())) return "fecha desconocida";
-    return fecha.toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
   };
 
   useEffect(() => {
@@ -517,7 +359,7 @@ const GestionUsuarios = () => {
       } else {
         Swal.fire("Error", response.datos?.message || "No se pudo aprobar.", "error");
       }
-    } catch (err) {
+    } catch {
       Swal.fire("Error de red", "Hubo un error al conectar.", "error");
     } finally {
       setResolviendoSolicitud(null);
@@ -558,7 +400,7 @@ const GestionUsuarios = () => {
       } else {
         Swal.fire("Error", response.datos?.message || "No se pudo rechazar.", "error");
       }
-    } catch (err) {
+    } catch {
       Swal.fire("Error de red", "Hubo un error al conectar.", "error");
     } finally {
       setResolviendoSolicitud(null);
@@ -599,7 +441,7 @@ const GestionUsuarios = () => {
       } else {
         Swal.fire("Error", "No se pudo archivar.", "error");
       }
-    } catch (err) {
+    } catch {
       Swal.fire("Error de red", "Hubo un error al conectar.", "error");
     }
   };
@@ -624,7 +466,7 @@ const GestionUsuarios = () => {
       } else {
         Swal.fire("Error", "No se pudo restaurar.", "error");
       }
-    } catch (err) {
+    } catch {
       Swal.fire("Error de red", "Hubo un error al conectar.", "error");
     }
   };
@@ -655,7 +497,7 @@ const GestionUsuarios = () => {
       } else {
         Swal.fire("Error", "No se pudo eliminar.", "error");
       }
-    } catch (err) {
+    } catch {
       Swal.fire("Error de red", "Hubo un error al conectar.", "error");
     }
   };
@@ -785,23 +627,6 @@ const GestionUsuarios = () => {
     }
   }, [showSolicitudes]);
 
-  // Animación del Dropdown de Filtros (AutoAlpha para mejor Performance)
-  useGSAP(() => {
-    if (!dropdownRef.current) return;
-    if (showFilters) {
-      gsap.fromTo(
-        dropdownRef.current,
-        { y: -10, autoAlpha: 0, scale: 0.98 },
-        { y: 0, autoAlpha: 1, scale: 1, duration: 0.25, ease: "power2.out", display: "flex" }
-      );
-    } else {
-      gsap.to(dropdownRef.current, {
-        y: -10, autoAlpha: 0, scale: 0.98, duration: 0.2, ease: "power2.in", display: "none"
-      });
-    }
-  }, [showFilters]);
-
-
   return (
     <div className="gestion-usuarios-page" ref={containerRef}>
       <HeaderSuperadmin />
@@ -863,143 +688,34 @@ const GestionUsuarios = () => {
             </div>
           </>
         ) : (
-          <section className="usuarios-toolbar usuarios-animate-toolbar">
-            
-            {/* Agrupamos Búsqueda y Botón de Filtros */}
-            <div className="usuarios-search-filter-group">
-              <div className="usuarios-search">
-                <Search className="search-icon" size={20} />
-                <input
-                  type="text"
-                  placeholder="Buscar por nombre, email o rol..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-
-              {/* Contenedor relativo para el Popover de Filtros */}
-              <div className="filtros-wrapper">
-                <button 
-                  ref={buttonFilterRef}
-                  className={`btn-toggle-filtros ${activeFiltersCount > 0 ? 'activo' : ''}`}
-                  onClick={() => setShowFilters(!showFilters)}
-                >
-                  <Filter size={18} />
-                  <span>Filtros</span>
-                  {activeFiltersCount > 0 && (
-                    <span className="filtros-badge">{activeFiltersCount}</span>
-                  )}
-                  <ChevronDown size={16} className={`chevron-filter ${showFilters ? 'open' : ''}`} />
-                </button>
-
-                {/* Panel Desplegable Animado */}
-                <div className="filtros-dropdown-panel" ref={dropdownRef}>
-                  <div className="filtros-dropdown-header">
-                    <SlidersHorizontal size={16}/>
-                    <span>Filtros avanzados</span>
-                  </div>
-
-                  <div className="filtros-dropdown-body">
-                    <div className="form-group-filter">
-                      <label>Empresa</label>
-                      <div className="select-wrapper">
-                        <select
-                          value={selectedEmpresa}
-                          onChange={(e) => {
-                            setSelectedEmpresa(e.target.value);
-                            setSelectedSede(""); // Reseteamos sede al cambiar empresa
-                            setSelectedGarage("");
-                          }}
-                        >
-                          <option value="">Todas las empresas</option>
-                          {empresasDisponibles.map((emp) => (
-                            <option key={emp} value={emp}>
-                              {emp}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown size={16} className="chevron-select" />
-                      </div>
-                    </div>
-
-                    <div className="form-group-filter">
-                      <label>Sede</label>
-                      <div className="select-wrapper">
-                        <select
-                          value={selectedSede}
-                          onChange={(e) => {
-                            setSelectedSede(e.target.value);
-                            setSelectedGarage("");
-                          }}
-                        >
-                          <option value="">Todas las sedes</option>
-                          {sedesDisponibles.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown size={16} className="chevron-select" />
-                      </div>
-                    </div>
-
-                    <div className="form-group-filter">
-                      <label>Garage</label>
-                      <div className="select-wrapper">
-                        <select
-                          value={selectedGarage}
-                          onChange={(e) => setSelectedGarage(e.target.value)}
-                        >
-                          <option value="">Todos los garages</option>
-                          {garagesDisponibles.map((g) => (
-                            <option key={g} value={g}>
-                              {g}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown size={16} className="chevron-select" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Footer del panel (Limpiar) */}
-                  {activeFiltersCount > 0 && (
-                    <div className="filtros-dropdown-footer">
-                      <button
-                        className="btn-limpiar-dropdown"
-                        onClick={() => {
-                          setSelectedEmpresa("");
-                          setSelectedSede("");
-                          setSelectedGarage("");
-                        }}
-                      >
-                        <X size={14} />
-                        Limpiar todos
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="usuarios-role-pills">
-              <button
-                className={`role-pill ${!selectedRol ? "active" : ""}`}
-                onClick={() => setSelectedRol("")}
-              >
-                Todos
-              </button>
-              {ROLE_ORDER.map((rid) => (
-                <button
-                  key={rid}
-                  className={`role-pill ${ROLE_CLASSES[rid]} ${Number(selectedRol) === rid ? "active" : ""}`}
-                  onClick={() => setSelectedRol(String(rid))}
-                >
-                  {ROLE_LABELS[rid]}
-                </button>
-              ))}
-            </div>
-          </section>
+          <UsuariosToolbar
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            selectedRol={selectedRol}
+            onSelectRol={setSelectedRol}
+            selectedEmpresa={selectedEmpresa}
+            selectedSede={selectedSede}
+            selectedGarage={selectedGarage}
+            onEmpresaChange={(value) => {
+              setSelectedEmpresa(value);
+              setSelectedSede("");
+              setSelectedGarage("");
+            }}
+            onSedeChange={(value) => {
+              setSelectedSede(value);
+              setSelectedGarage("");
+            }}
+            onGarageChange={setSelectedGarage}
+            onClearFilters={() => {
+              setSelectedEmpresa("");
+              setSelectedSede("");
+              setSelectedGarage("");
+            }}
+            activeFiltersCount={activeFiltersCount}
+            empresasDisponibles={empresasDisponibles}
+            sedesDisponibles={sedesDisponibles}
+            garagesDisponibles={garagesDisponibles}
+          />
         )}
 
         {!loading && (
@@ -1018,85 +734,13 @@ const GestionUsuarios = () => {
 
             {!error && usuariosFiltrados.length > 0
               ? usuariosFiltrados.map((u) => (
-                  <article
+                  <UsuarioCard
                     key={u.id}
-                    className={`usuario-card usuario-card-id-${u.id}`}
-                  >
-                    <div className="usuario-card-top">
-                      <div className="usuario-avatar">
-                        {u.nombre.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="usuario-info">
-                        <h3>{u.nombre}</h3>
-                        <span className={`usuario-role-badge ${ROLE_CLASSES[u.id_rol]}`}>
-                          <ShieldCheck size={12} />
-                          {u.role}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="usuario-card-body">
-                      <p className="usuario-email">{u.email}</p>
-                      {u.telefono && <p className="usuario-tel">{u.telefono}</p>}
-
-                      <div className="usuario-metas">
-                        {u.empresa && (
-                          <span className="usuario-meta">
-                            <Building2 size={13} />
-                            {u.empresa}
-                          </span>
-                        )}
-                        {u.sede && (
-                          <span className={`usuario-meta ${u.id_rol === 1 ? 'usuario-meta-admin' : ''}`}>
-                            <MapPin size={13} />
-                            {u.sede}
-                          </span>
-                        )}
-                        {u.garages.length > 0 && <div className="usuario-garages-summary">
-                          <span className={`usuario-meta ${u.id_rol === 3 ? 'usuario-meta-garage' : ''}`} title={u.garages[0]}>
-                            <Car size={13} />
-                            <span>{u.garages[0]}</span>
-                          </span>
-                          {u.id_rol === 5 && u.garages.length > 1 ? <button type="button" className="usuario-garages-more" onClick={() => setGaragesModalUsuario(u)} aria-label={`Ver los ${u.garages.length} garages de ${u.nombre}`}>
-                            Ver más <strong>+{u.garages.length - 1}</strong>
-                          </button> : null}
-                        </div>}
-                        {u.id_rol === 1 && !u.sede && (
-                          <span className="usuario-meta usuario-meta-admin">
-                            <Building2 size={13} />
-                            Admin General
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="usuario-card-footer">
-                      <div className="usuario-status">
-                        <div className="status-dot active"></div>
-                        <span>Activo</span>
-                      </div>
-
-                      {u.id_rol !== 4 && (
-                        <div className="usuario-actions">
-                          <button
-                            className="usuario-login-as-btn"
-                            onClick={() => handleLoginAs(u)}
-                            aria-label={`Ingresar como ${u.nombre}`}
-                          >
-                            <LogIn size={14} />
-                            <span>Loguearte como</span>
-                          </button>
-                          <button
-                            className="usuario-archive-btn"
-                            onClick={() => handleArchivar(u.id, u.nombre)}
-                            aria-label={`Archivar a ${u.nombre}`}
-                          >
-                            <Archive size={16} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </article>
+                    usuario={u}
+                    onLoginAs={handleLoginAs}
+                    onArchivar={handleArchivar}
+                    onVerGarages={setGaragesModalUsuario}
+                  />
                 ))
               : null}
 
@@ -1134,217 +778,36 @@ const GestionUsuarios = () => {
         )}
       </main>
 
-      {garagesModalUsuario && <ModalPortal onClose={() => setGaragesModalUsuario(null)} overlayClassName="garages-owner-overlay">
-        <section className="garages-owner-modal" role="dialog" aria-modal="true" aria-labelledby="garages-owner-title" onClick={(event) => event.stopPropagation()}>
-          <header><div className="garages-owner-modal__icon"><Car size={21}/></div><div><span>Dueño de garage</span><h2 id="garages-owner-title">Garages de {garagesModalUsuario.nombre}</h2><p>{garagesModalUsuario.garages.length} garages asociados</p></div><button type="button" onClick={() => setGaragesModalUsuario(null)} aria-label="Cerrar listado de garages"><X size={20}/></button></header>
-          <ul>{garagesModalUsuario.garages.map((garage, index) => <li key={`${garage}-${index}`}><span>{index + 1}</span><div><strong>{garage}</strong><small>Garage administrado</small></div></li>)}</ul>
-        </section>
-      </ModalPortal>}
-
-      {/* MODAL ARCHIVADOS (Se mantiene intacto) */}
-      {showArchived && (
-        <ModalPortal onClose={() => setShowArchived(false)}>
-          <div
-            className="modal-archivados-panel"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-archivados-header">
-              <div className="modal-archivados-title-group">
-                <Archive size={24} />
-                <h2>Usuarios Archivados</h2>
-              </div>
-              <button
-                className="modal-archivados-close"
-                onClick={() => setShowArchived(false)}
-              >
-                <X size={22} />
-              </button>
-            </div>
-
-            <div className="modal-archivados-search">
-              <div className="usuarios-search" style={{ width: "100%" }}>
-                <Search className="search-icon" size={20} />
-                <input
-                  type="text"
-                  placeholder="Buscar archivados..."
-                  value={searchArchivedTerm}
-                  onChange={(e) => setSearchArchivedTerm(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="modal-archivados-body">
-              {totalArchivados === 0 ? (
-                <EmptyState
-                  size="sm"
-                  icon={Archive}
-                  title="No hay usuarios archivados"
-                  description="Los usuarios que archives aparecerán aquí."
-                />
-              ) : usuariosArchivados.length === 0 ? (
-                <EmptyState
-                  size="sm"
-                  icon={Search}
-                  tone="filtered"
-                  title={`No se encontraron archivados para "${searchArchivedTerm}"`}
-                  action={{ label: "Limpiar búsqueda", onClick: () => setSearchArchivedTerm(""), variant: "secondary" }}
-                />
-              ) : (
-                usuariosArchivados.map((u) => (
-                  <article key={u.id} className="usuario-archivado-card">
-                    <div className="usuario-archivado-top">
-                      <div className="usuario-archivado-info">
-                        <div className="usuario-avatar">{u.nombre.charAt(0).toUpperCase()}</div>
-                        <div>
-                          <h3>{u.nombre}</h3>
-                          <span className={`usuario-role-badge ${ROLE_CLASSES[u.id_rol]}`}>
-                            <ShieldCheck size={12} />
-                            {u.role}
-                          </span>
-                        </div>
-                      </div>
-                      <span className="badge-archivado">Archivado</span>
-                    </div>
-
-                    <p className="usuario-email">{u.email}</p>
-
-                    {u.empresa && (
-                      <p className="usuario-meta">
-                        <Building2 size={13} />
-                        {u.empresa}
-                      </p>
-                    )}
-
-                    <div className="usuario-archivado-actions">
-                      {u.id_rol !== 4 && (
-                        <>
-                          <BotonGenerico
-                            className="btn-restaurar"
-                            onClick={() => handleRestaurar(u.id, u.nombre)}
-                          >
-                            <RotateCcw size={16} />
-                            <span>Restaurar</span>
-                          </BotonGenerico>
-                          <BotonGenerico
-                            className="btn-eliminar-archivado"
-                            onClick={() => handleEliminar(u.id, u.nombre)}
-                          >
-                            <Trash2 size={16} />
-                          </BotonGenerico>
-                        </>
-                      )}
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
-          </div>
-        </ModalPortal>
+      {garagesModalUsuario && (
+        <ModalGaragesUsuario
+          usuario={garagesModalUsuario}
+          onClose={() => setGaragesModalUsuario(null)}
+        />
       )}
 
-      {/* BANDEJA DE SOLICITUDES DE REGISTRO DE EMPRESAS */}
+      {showArchived && (
+        <ModalArchivados
+          totalArchivados={totalArchivados}
+          usuariosArchivados={usuariosArchivados}
+          searchTerm={searchArchivedTerm}
+          onSearchChange={setSearchArchivedTerm}
+          onClose={() => setShowArchived(false)}
+          onRestaurar={handleRestaurar}
+          onEliminar={handleEliminar}
+        />
+      )}
+
       {showSolicitudes && (
-        <ModalPortal onClose={cerrarSolicitudes}>
-          <div
-            className="modal-solicitudes-panel"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-solicitudes-header">
-              <div className="modal-solicitudes-title-group">
-                <Inbox size={24} />
-                <div>
-                  <h2>Solicitudes de registro</h2>
-                  <p>Empresas pendientes de validación</p>
-                </div>
-              </div>
-              <button
-                className="modal-solicitudes-close"
-                onClick={cerrarSolicitudes}
-                aria-label="Cerrar bandeja de solicitudes"
-              >
-                <X size={22} />
-              </button>
-            </div>
-
-            <div className="modal-solicitudes-search">
-              <div className="usuarios-search" style={{ width: "100%" }}>
-                <Search className="search-icon" size={20} />
-                <input
-                  type="text"
-                  placeholder="Buscar por nombre, email o empresa..."
-                  value={searchSolicitudesTerm}
-                  onChange={(e) => setSearchSolicitudesTerm(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="modal-solicitudes-body">
-              {totalSolicitudesPendientes === 0 ? (
-                <EmptyState
-                  size="sm"
-                  icon={Inbox}
-                  title="No hay solicitudes pendientes"
-                  description="Los registros de nuevas empresas aparecerán aquí."
-                />
-              ) : solicitudesFiltradas.length === 0 ? (
-                <EmptyState
-                  size="sm"
-                  icon={Search}
-                  tone="filtered"
-                  title={`No se encontraron solicitudes para "${searchSolicitudesTerm}"`}
-                  action={{ label: "Limpiar búsqueda", onClick: () => setSearchSolicitudesTerm(""), variant: "secondary" }}
-                />
-              ) : (
-                solicitudesFiltradas.map((s) => (
-                  <article key={s.id} className={`solicitud-registro-card solicitud-card-id-${s.id}`}>
-                    <div className="solicitud-registro-top">
-                      <div className="solicitud-registro-info">
-                        <div className="usuario-avatar">{(s.nombre || "?").charAt(0).toUpperCase()}</div>
-                        <div>
-                          <h3>{`${s.nombre || ""} ${s.apellido || ""}`.trim() || "Sin nombre"}</h3>
-                          <p className="usuario-email">{s.email}</p>
-                        </div>
-                      </div>
-                      <span className="badge-solicitud-pendiente">Pendiente</span>
-                    </div>
-
-                    <div className="solicitud-registro-empresa">
-                      <Building2 size={15} />
-                      <div>
-                        <strong>{s.empresa_nombre}</strong>
-                        {s.empresa_descripcion && <p>{s.empresa_descripcion}</p>}
-                      </div>
-                    </div>
-
-                    <div className="solicitud-registro-meta">
-                      {s.telefono && <span>{s.telefono}</span>}
-                      <span>Recibida el {formatearFechaSolicitud(s.created_at)}</span>
-                    </div>
-
-                    <div className="solicitud-registro-actions">
-                      <BotonGenerico
-                        className="btn-aprobar-solicitud"
-                        disabled={resolviendoSolicitud === s.id}
-                        onClick={() => handleAprobarSolicitud(s)}
-                      >
-                        <Check size={16} />
-                        <span>{resolviendoSolicitud === s.id ? "Procesando…" : "Aprobar"}</span>
-                      </BotonGenerico>
-                      <BotonGenerico
-                        className="btn-rechazar-solicitud"
-                        disabled={resolviendoSolicitud === s.id}
-                        onClick={() => handleRechazarSolicitud(s)}
-                      >
-                        <X size={16} />
-                        <span>Rechazar</span>
-                      </BotonGenerico>
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
-          </div>
-        </ModalPortal>
+        <ModalSolicitudes
+          totalSolicitudesPendientes={totalSolicitudesPendientes}
+          solicitudesFiltradas={solicitudesFiltradas}
+          searchTerm={searchSolicitudesTerm}
+          onSearchChange={setSearchSolicitudesTerm}
+          onClose={cerrarSolicitudes}
+          resolviendoSolicitud={resolviendoSolicitud}
+          onAprobar={handleAprobarSolicitud}
+          onRechazar={handleRechazarSolicitud}
+        />
       )}
 
       <FooterSuperadmin />

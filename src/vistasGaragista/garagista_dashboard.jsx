@@ -1,27 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowLeft,
-  CalendarDays,
-  CarFront,
-  CheckCircle2,
-  Clock3,
-  DoorOpen,
-  Eye,
-  QrCode,
-  Search,
-  ShieldCheck,
-  Warehouse,
-  X,
-} from "lucide-react";
+import { Warehouse } from "lucide-react";
 import { GaragesGetAll, GaragesGetById } from "../servicies/API_Garage";
 import { ReservasCheckIn, ReservasCheckOut, ReservasGetControlAcceso } from "../servicies/API_Reserva";
 import { UsuariosGetById } from "../servicies/API_Usuario";
-import ModalPortal from "../componentesCompartidos/ModalPortal";
 import EmptyState from "../componentesCompartidos/EmptyState";
 import LectorQrReserva from "./LectorQrReserva";
 import HeaderAdmin from "../componentesAdmin/header_admin";
 import FooterAdmin from "../componentesAdmin/footer_admin";
+import GaragistaEncabezado from "../componentesGaragista/garagista_encabezado";
+import GaragistaPaneles from "../componentesGaragista/garagista_paneles";
+import GaragistaMovimientos from "../componentesGaragista/garagista_movimientos";
+import GaragistaDashboardSkeleton from "../componentesGaragista/garagista_dashboard_skeleton";
+import ModalVerificacionAcceso from "../componentesGaragista/modal_verificacion_acceso";
+import {
+  esValorVerdadero,
+  normalizarReservaControlAcceso,
+  obtenerFechaActual,
+  obtenerFechaISOActual,
+  obtenerHoraActual,
+  obtenerHoraEntradaReal,
+  obtenerHoraHabilitacionIngreso,
+  obtenerHoraSalidaReal,
+  obtenerIdGarage,
+  obtenerIdReserva,
+  obtenerListado,
+  obtenerMensajeIngresoAnticipado,
+  obtenerReservaResultadoQr,
+} from "../componentesGaragista/control_acceso_helpers";
 import { useAuth } from "../contexts/useAuth";
 import { showToast } from "../helpers/toast";
 import { normalizarPatente } from "../helpers/patente";
@@ -32,421 +38,6 @@ import {
   reservaPerteneceAlGarage,
 } from "../helpers/controlAcceso";
 import "./garagista_dashboard.css";
-
-const MENSAJE_INGRESO_ANTICIPADO =
-  "No se puede ingresar el vehículo hasta una hora antes del horario pautado de la reserva.";
-
-const MINUTOS_ANTICIPACION_INGRESO = 60;
-const SKELETON_CARD_KEYS = ["reserva-1", "reserva-2", "reserva-3"];
-const SKELETON_MOVEMENT_KEYS = ["movimiento-1", "movimiento-2", "movimiento-3"];
-
-const obtenerHoraActual = () =>
-  new Intl.DateTimeFormat("es-AR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date());
-
-const obtenerFechaActual = () =>
-  new Intl.DateTimeFormat("es-AR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date());
-
-const obtenerFechaISOActual = () =>
-  new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: "America/Argentina/Buenos_Aires",
-  }).format(new Date());
-
-const tieneZonaHoraria = (valor) => /(?:Z|[+-]\d{2}:?\d{2})$/.test(String(valor).trim());
-
-const extraerFecha = (valor) => {
-  if (!valor) return "";
-  const texto = String(valor);
-  if (tieneZonaHoraria(texto)) {
-    const fecha = new Date(texto);
-    if (!Number.isNaN(fecha.getTime())) {
-      return new Intl.DateTimeFormat("en-CA", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        timeZone: "America/Argentina/Buenos_Aires",
-      }).format(fecha);
-    }
-  }
-
-  const coincidencia = texto.match(/^\d{4}-\d{2}-\d{2}/);
-  if (coincidencia) return coincidencia[0];
-
-  const fecha = new Date(texto);
-  if (Number.isNaN(fecha.getTime())) return "";
-  return new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: "America/Argentina/Buenos_Aires",
-  }).format(fecha);
-};
-
-const obtenerFechaReserva = (reserva) => {
-  const candidatos = [
-    reserva.fecha_entrada,
-    reserva.fechaEntrada,
-    reserva.fecha_inicio,
-    reserva.fechaInicio,
-    reserva.fecha,
-    reserva.fecha_reserva,
-    reserva.fechaReserva,
-  ];
-
-  for (const candidato of candidatos) {
-    const fecha = extraerFecha(candidato);
-    if (fecha) return fecha;
-  }
-  return "";
-};
-
-const obtenerIdGarage = (garage) =>
-  garage?.id_garage ?? garage?.idGarage ?? garage?.garage_id ?? garage?.id ?? garage?._id;
-
-const obtenerIdReserva = (reserva) =>
-  reserva?.id_reserva ?? reserva?.id ?? reserva?._id;
-
-const obtenerReservaResultadoQr = (datos) => {
-  const candidatos = [datos?.reserva, datos?.data?.reserva, datos?.data, datos?.datos, datos];
-  return candidatos.find((item) => item && typeof item === "object" && !Array.isArray(item) && obtenerIdReserva(item)) ?? null;
-};
-
-const obtenerListado = (datos) => {
-  if (Array.isArray(datos)) return datos;
-  if (Array.isArray(datos?.datos)) return datos.datos;
-  if (Array.isArray(datos?.data)) return datos.data;
-  if (Array.isArray(datos?.reservas)) return datos.reservas;
-  if (Array.isArray(datos?.usuarios)) return datos.usuarios;
-  return [];
-};
-
-const esValorVerdadero = (valor) => {
-  if (valor === true || valor === 1) return true;
-  if (valor === false || valor === 0 || valor == null) return false;
-  if (typeof valor !== "string") return false;
-
-  const texto = valor.trim().toLowerCase();
-  if (!texto || ["false", "0", "no", "null", "undefined"].includes(texto)) return false;
-  if (["true", "1", "si", "sí", "completo", "completado"].includes(texto)) return true;
-  return !Number.isNaN(new Date(valor).getTime());
-};
-
-const normalizarEstadoReserva = (reserva) => {
-  const estadoExplicito = String(
-    reserva.estado ?? reserva.status ?? reserva.estado_reserva ?? reserva.estadoReserva ?? ""
-  ).trim().toLowerCase().replace(/[\s-]+/g, "_");
-  const entro = [
-    reserva.entrada,
-    reserva.ingreso,
-    reserva.check_in,
-    reserva.checkIn,
-    reserva.entro,
-    reserva.entrada_registrada,
-    reserva.entradaRegistrada,
-    reserva.fecha_entrada_real,
-    reserva.fechaEntradaReal,
-    reserva.fecha_ingreso,
-    reserva.fechaIngreso,
-    reserva.hora_ingreso,
-    reserva.horaIngreso,
-    reserva.ingreso_at,
-    reserva.ingresoAt,
-    reserva.ingreso_exitoso,
-    reserva.ingresoExitoso,
-    reserva.esta_dentro,
-    reserva.estaDentro,
-    reserva.movimiento?.fecha_entrada,
-    reserva.movimiento?.fechaIngreso,
-  ].some(esValorVerdadero);
-  const salio = [
-    reserva.salida,
-    reserva.egreso,
-    reserva.check_out,
-    reserva.checkOut,
-    reserva.salio,
-    reserva.salida_registrada,
-    reserva.salidaRegistrada,
-    reserva.fecha_salida_real,
-    reserva.fechaSalidaReal,
-    reserva.fecha_egreso,
-    reserva.fechaEgreso,
-    reserva.hora_egreso,
-    reserva.horaEgreso,
-    reserva.egreso_at,
-    reserva.egresoAt,
-  ].some(esValorVerdadero);
-
-  if (salio || ["finalizado", "finalizada", "completado", "completada", "fuera", "checkout", "check_out"].includes(estadoExplicito)) {
-    return "Finalizado";
-  }
-  if (entro || ["dentro", "ingresado", "ingresada", "adentro", "ocupado", "ocupada", "ingreso", "en_curso", "dentro_garage", "checkin", "check_in"].includes(estadoExplicito)) {
-    return "Dentro";
-  }
-  return "Pendiente";
-};
-
-const extraerHora = (valor) => {
-  if (!valor) return null;
-  const texto = String(valor).trim();
-
-  if (/^\d{2}:\d{2}/.test(texto)) return texto.slice(0, 5);
-
-  if (tieneZonaHoraria(texto)) {
-    const fecha = new Date(texto);
-    if (!Number.isNaN(fecha.getTime())) {
-      return new Intl.DateTimeFormat("es-AR", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-        timeZone: "America/Argentina/Buenos_Aires",
-      }).format(fecha);
-    }
-  }
-
-  if (texto.includes("T")) return texto.split("T")[1]?.slice(0, 5);
-  if (texto.includes(" ")) return texto.split(" ")[1]?.slice(0, 5);
-  if (texto.includes(":")) return texto.slice(0, 5);
-  return null;
-};
-
-const obtenerHoraEntradaReal = (reserva) => {
-  const candidatos = [
-    reserva.fecha_entrada_real,
-    reserva.fechaEntradaReal,
-    reserva.hora_entrada_real,
-    reserva.horaEntradaReal,
-    reserva.entrada_registrada,
-    reserva.entradaRegistrada,
-    reserva.check_in,
-    reserva.checkIn,
-    reserva.entrada,
-    reserva.ingreso,
-    reserva.fecha_ingreso,
-    reserva.fechaIngreso,
-    reserva.hora_ingreso,
-    reserva.horaIngreso,
-    reserva.ingreso_at,
-    reserva.ingresoAt,
-    reserva.check_in_at,
-    reserva.checkInAt,
-    reserva.movimiento?.fecha_entrada,
-    reserva.movimiento?.fechaEntrada,
-    reserva.movimiento?.hora_entrada,
-    reserva.movimiento?.horaEntrada,
-    reserva.movimiento?.fecha_ingreso,
-    reserva.movimiento?.hora_ingreso,
-  ];
-
-  for (const candidato of candidatos) {
-    if (typeof candidato === "boolean" || candidato === 0 || candidato === 1) continue;
-    const hora = extraerHora(candidato);
-    if (hora) return hora;
-  }
-
-  return null;
-};
-
-const obtenerHoraSalidaReal = (reserva) => {
-  const candidatos = [
-    reserva.fecha_salida_real,
-    reserva.fechaSalidaReal,
-    reserva.hora_salida_real,
-    reserva.horaSalidaReal,
-    reserva.salida_registrada,
-    reserva.salidaRegistrada,
-    reserva.check_out,
-    reserva.checkOut,
-    reserva.salida,
-    reserva.egreso,
-    reserva.fecha_egreso,
-    reserva.fechaEgreso,
-    reserva.hora_egreso,
-    reserva.horaEgreso,
-    reserva.egreso_at,
-    reserva.egresoAt,
-    reserva.check_out_at,
-    reserva.checkOutAt,
-    reserva.movimiento?.fecha_salida,
-    reserva.movimiento?.fechaSalida,
-    reserva.movimiento?.hora_salida,
-    reserva.movimiento?.horaSalida,
-    reserva.movimiento?.fecha_egreso,
-    reserva.movimiento?.hora_egreso,
-  ];
-
-  for (const candidato of candidatos) {
-    if (typeof candidato === "boolean" || candidato === 0 || candidato === 1) continue;
-    const hora = extraerHora(candidato);
-    if (hora) return hora;
-  }
-
-  return null;
-};
-
-const obtenerFechaHoraReserva = (reserva) => {
-  const fecha = reserva?.fechaReserva;
-  const hora = reserva?.horaReserva;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^\d{2}:\d{2}$/.test(hora)) return null;
-
-  const [anio, mes, dia] = fecha.split("-").map(Number);
-  const [horas, minutos] = hora.split(":").map(Number);
-  const fechaHora = new Date(anio, mes - 1, dia, horas, minutos);
-
-  return Number.isNaN(fechaHora.getTime()) ? null : fechaHora;
-};
-
-const obtenerHoraHabilitacionIngreso = (reserva) => {
-  const fechaHoraReserva = obtenerFechaHoraReserva(reserva);
-  if (!fechaHoraReserva) return null;
-
-  const fechaHabilitacion = new Date(fechaHoraReserva);
-  fechaHabilitacion.setMinutes(fechaHabilitacion.getMinutes() - MINUTOS_ANTICIPACION_INGRESO);
-  return fechaHabilitacion;
-};
-
-const formatearHora = (fecha) =>
-  new Intl.DateTimeFormat("es-AR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(fecha);
-
-const obtenerMensajeIngresoAnticipado = (reserva) => {
-  const fechaHabilitacion = obtenerHoraHabilitacionIngreso(reserva);
-  if (!fechaHabilitacion) return MENSAJE_INGRESO_ANTICIPADO;
-
-  return `No se puede registrar el ingreso todavia. La entrada del vehiculo se podra efectuar a partir de las ${formatearHora(fechaHabilitacion)}, una hora antes del horario de la reserva.`;
-};
-
-const obtenerFechaHoraProgramada = (fecha, hora) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha)) || !/^\d{2}:\d{2}$/.test(String(hora))) {
-    return null;
-  }
-
-  const [anio, mes, dia] = fecha.split("-").map(Number);
-  const [horas, minutos] = hora.split(":").map(Number);
-  const fechaHora = new Date(anio, mes - 1, dia, horas, minutos);
-
-  return Number.isNaN(fechaHora.getTime()) ? null : fechaHora;
-};
-
-const estaReservaPendienteVencida = (reserva, ahora = new Date()) => {
-  if (reserva.estado !== "Pendiente") return false;
-  const salidaProgramada = obtenerFechaHoraProgramada(reserva.fechaReserva, reserva.horaSalidaPrevista);
-  return Boolean(salidaProgramada && salidaProgramada <= ahora);
-};
-
-const obtenerClaseEstado = (estado) =>
-  String(estado || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-");
-
-function BadgeEstado({ estado }) {
-  return (
-    <span className={`garagista-status garagista-status--${obtenerClaseEstado(estado)}`}>
-      {estado}
-    </span>
-  );
-}
-
-function SkeletonLine({ className = "" }) {
-  return <span className={`garagista-skeleton-line ${className}`} aria-hidden="true" />;
-}
-
-function SkeletonAccessCard() {
-  return (
-    <article className="access-card access-card--skeleton" aria-hidden="true">
-      <div className="access-card__top">
-        <div className="garagista-skeleton-stack">
-          <SkeletonLine className="garagista-skeleton-line--title" />
-          <SkeletonLine className="garagista-skeleton-line--text" />
-        </div>
-        <SkeletonLine className="garagista-skeleton-line--badge" />
-      </div>
-
-      <dl className="access-card__meta">
-        <div>
-          <SkeletonLine className="garagista-skeleton-line--label" />
-          <SkeletonLine className="garagista-skeleton-line--value" />
-        </div>
-        <div>
-          <SkeletonLine className="garagista-skeleton-line--label" />
-          <SkeletonLine className="garagista-skeleton-line--value garagista-skeleton-line--short" />
-        </div>
-      </dl>
-
-      <SkeletonLine className="garagista-skeleton-line--button" />
-    </article>
-  );
-}
-
-function GaragistaDashboardSkeleton() {
-  return (
-    <div className="garagista-skeleton" role="status" aria-label="Cargando datos del garage">
-      <div className="garagista-mobile-tabs garagista-skeleton-tabs" aria-hidden="true">
-        <SkeletonLine className="garagista-skeleton-line--tab" />
-        <SkeletonLine className="garagista-skeleton-line--tab" />
-      </div>
-
-      <div className="garagista-sections-grid">
-        {["Ingresos pendientes", "Autos dentro"].map((titulo) => (
-          <section className="garagista-section garagista-mobile-panel is-active" key={titulo}>
-            <div className="garagista-section-heading" aria-hidden="true">
-              <div>
-                <SkeletonLine className="garagista-skeleton-line--eyebrow" />
-                <SkeletonLine className="garagista-skeleton-line--heading" />
-              </div>
-              <SkeletonLine className="garagista-skeleton-line--count" />
-            </div>
-
-            <div className="garagista-card-list">
-              {SKELETON_CARD_KEYS.map((key) => (
-                <SkeletonAccessCard key={`${titulo}-${key}`} />
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-
-      <section className="garagista-section garagista-section--movements">
-        <div className="garagista-section-heading" aria-hidden="true">
-          <div>
-            <SkeletonLine className="garagista-skeleton-line--eyebrow" />
-            <SkeletonLine className="garagista-skeleton-line--heading" />
-          </div>
-          <SkeletonLine className="garagista-skeleton-line--count" />
-        </div>
-
-        <div className="movements-list" aria-hidden="true">
-          {SKELETON_MOVEMENT_KEYS.map((key) => (
-            <article className="movement-row movement-row--skeleton" key={key}>
-              <div className="garagista-skeleton-stack">
-                <SkeletonLine className="garagista-skeleton-line--title" />
-                <SkeletonLine className="garagista-skeleton-line--text" />
-              </div>
-              <SkeletonLine className="garagista-skeleton-line--badge" />
-              <SkeletonLine className="garagista-skeleton-line--value" />
-              <SkeletonLine className="garagista-skeleton-line--value" />
-              <SkeletonLine className="garagista-skeleton-line--value" />
-            </article>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
 
 export default function GaragistaDashboard() {
   const navigate = useNavigate();
@@ -616,42 +207,7 @@ export default function GaragistaDashboard() {
             if (esValorVerdadero(r.borrado)) return false;
             return reservaPerteneceAlGarage(r, idGarageAsignado);
           })
-          .map((r) => {
-            const estadoBase = normalizarEstadoReserva(r);
-            const fechaReserva = obtenerFechaReserva(r);
-            const horaSalidaPrevista = extraerHora(r.hora_salida)
-              ?? extraerHora(r.horaFin)
-              ?? extraerHora(r.fecha_salida)
-              ?? extraerHora(r.fecha_fin)
-              ?? extraerHora(r.fechaFinalizacion)
-              ?? "--:--";
-            const estado = estaReservaPendienteVencida({
-              estado: estadoBase,
-              fechaReserva,
-              horaSalidaPrevista,
-            }) ? "Sin registro" : estadoBase;
-
-            return {
-              id: obtenerIdReserva(r),
-              conductor: r.conductor || r.usuario_nombre || r.usuario?.nombre || "Conductor desconocido",
-              fechaReserva,
-              horaReserva: extraerHora(r.hora_entrada)
-                ?? extraerHora(r.horaInicio)
-                ?? extraerHora(r.fecha_entrada)
-                ?? extraerHora(r.fecha_inicio)
-                ?? "--:--",
-              horaSalidaPrevista,
-              vehiculo: [
-                r.marca_nombre ?? r.vehiculo?.marca?.nombre ?? r.vehiculo?.marca,
-                r.modelo_nombre ?? r.vehiculo?.modelo?.nombre ?? r.vehiculo?.modelo,
-              ].filter(Boolean).join(" ") || "Vehículo desconocido",
-              patenteInterna: r.patente || r.vehiculo?.patente || r.vehiculo?.placa || "--",
-              estado,
-              horaEntrada: obtenerHoraEntradaReal(r),
-              horaSalida: obtenerHoraSalidaReal(r),
-              raw: r,
-            };
-          });
+          .map(normalizarReservaControlAcceso);
 
         if (!cancelado) setReservas(reservasDelGarage);
       } catch (error) {
@@ -823,81 +379,21 @@ export default function GaragistaDashboard() {
 
       <main className="garagista-page">
         <div className="garagista-shell">
-          <header className="garagista-hero">
-            <div className="garagista-title-block">
-              {esAdmin ? (
-                <button
-                  className="garagista-icon-button"
-                  type="button"
-                  onClick={() => navigate("/admin_dashboard")}
-                  aria-label="Volver al dashboard de admin"
-                >
-                  <ArrowLeft size={20} />
-                </button>
-              ) : null}
-
-              <div>
-                <span className="garagista-eyebrow">
-                  {esAdmin ? <Eye size={16} /> : <ShieldCheck size={16} />}
-                  {esAdmin ? "Vista de solo lectura" : "Operación diaria"}
-                </span>
-                <h1>Control de acceso</h1>
-              </div>
-            </div>
-          </header>
-
-          <section className="garagista-summary-card" aria-label="Resumen operativo">
-            <div>
-              <span className="garagista-summary-label">
-                {esAdmin ? "Garage consultado" : "Garage asignado"}
-              </span>
-              {esAdmin ? (
-                <select
-                  className="garagista-garage-select"
-                  value={garageSeleccionadoId ?? ""}
-                  onChange={(event) => setGarageSeleccionadoId(Number(event.target.value) || null)}
-                  disabled={cargandoGaragesAdmin || garagesDisponibles.length === 0}
-                  aria-label="Seleccionar garage para consultar"
-                >
-                  {garagesDisponibles.length === 0 ? (
-                    <option value="">Sin garages disponibles</option>
-                  ) : garagesDisponibles.map((garage) => (
-                    <option key={obtenerIdGarage(garage)} value={obtenerIdGarage(garage)}>
-                      {garage.nombre || garage.name || garage.descripcion || garage.ubicacion || "Garage"}
-                    </option>
-                  ))}
-                </select>
-              ) : cargandoVista ? (
-                <SkeletonLine className="garagista-skeleton-line--garage" />
-              ) : (
-                <strong>{garageData?.nombre || garageData?.name || garageData?.descripcion || garageData?.ubicacion || garageData?.nombre_garage || garageData?.garage_nombre || "Sin garage"}</strong>
-              )}
-            </div>
-
-            <div className="garagista-summary-metric">
-              <CalendarDays size={19} />
-              <span>{fechaActual}</span>
-            </div>
-
-            <div className="garagista-capacity">
-              <CarFront size={22} />
-              {cargandoVista ? (
-                <SkeletonLine className="garagista-skeleton-line--capacity" />
-              ) : (
-                <span>{cantidadAutosDentro} / {capacidadTotal || "—"} dentro</span>
-              )}
-            </div>
-          </section>
-
-          <label className="garagista-search">
-            <Search size={20} />
-            <input
-              type="search"
-              placeholder="Buscar por conductor o vehículo..."
-              value={busqueda}
-              onChange={(event) => setBusqueda(event.target.value)}
-            />
-          </label>
+          <GaragistaEncabezado
+            esAdmin={esAdmin}
+            onVolverAdmin={() => navigate("/admin_dashboard")}
+            garageSeleccionadoId={garageSeleccionadoId}
+            onGarageChange={setGarageSeleccionadoId}
+            cargandoGaragesAdmin={cargandoGaragesAdmin}
+            garagesDisponibles={garagesDisponibles}
+            cargandoVista={cargandoVista}
+            garageData={garageData}
+            fechaActual={fechaActual}
+            cantidadAutosDentro={cantidadAutosDentro}
+            capacidadTotal={capacidadTotal}
+            busqueda={busqueda}
+            onBusquedaChange={setBusqueda}
+          />
 
           {cargandoVista ? (
             <GaragistaDashboardSkeleton />
@@ -915,205 +411,23 @@ export default function GaragistaDashboard() {
               />
             )
           ) : (
-          <>
-          <div className="garagista-mobile-tabs" role="group" aria-label="Estado de las reservas">
-            <button
-              type="button"
-              className={seccionMovil === "pendientes" ? "is-active" : ""}
-              onClick={() => setSeccionMovil("pendientes")}
-              aria-pressed={seccionMovil === "pendientes"}
-            >
-              Pendientes <span>{reservasPendientes.length}</span>
-            </button>
-            <button
-              type="button"
-              className={seccionMovil === "dentro" ? "is-active" : ""}
-              onClick={() => setSeccionMovil("dentro")}
-              aria-pressed={seccionMovil === "dentro"}
-            >
-              Dentro <span>{autosDentro.length}</span>
-            </button>
-          </div>
-          <div className="garagista-sections-grid">
-            <section className={`garagista-section garagista-mobile-panel ${seccionMovil === "pendientes" ? "is-active" : ""}`}>
-              <div className="garagista-section-heading">
-                <div>
-                  <span>Ingresos pendientes</span>
-                  <h2>Reservas próximas</h2>
-                </div>
-                <strong>{reservasPendientes.length}</strong>
-              </div>
-
-              <div className="garagista-card-list">
-                {reservasPendientes.length > 0 ? (
-                  reservasPendientes.map((reserva) => (
-                    <article className="access-card" key={reserva.id}>
-                      <div className="access-card__top">
-                        <div>
-                          <h3>{reserva.conductor}</h3>
-                          <p>{reserva.vehiculo}</p>
-                        </div>
-                        <BadgeEstado estado={reserva.estado} />
-                      </div>
-
-                      <dl className="access-card__meta access-card__meta--single">
-                        <div>
-                          <dt>Hora de reserva</dt>
-                          <dd>
-                            <Clock3 size={15} />
-                            {reserva.horaReserva}
-                          </dd>
-                        </div>
-                      </dl>
-
-                      {!esAdmin ? (
-                        <div className="access-card__actions">
-                          <button
-                            className="garagista-primary-btn"
-                            type="button"
-                            onClick={() => setLectorQrAbierto("ingreso")}
-                            disabled={guardandoAccion}
-                          >
-                            <QrCode size={17} />
-                            Escanear QR
-                          </button>
-                          <button
-                            className="garagista-secondary-btn"
-                            type="button"
-                            onClick={() => abrirVerificacion(reserva)}
-                            disabled={guardandoAccion}
-                            aria-label={`Registrar ingreso de ${reserva.conductor} con patente manual`}
-                          >
-                            <ShieldCheck size={17} />
-                            Patente manual
-                          </button>
-                        </div>
-                      ) : null}
-                    </article>
-                  ))
-                ) : (
-                  <EmptyState
-                    icon={QrCode}
-                    title="No hay reservas próximas para mostrar."
-                    description="Cuando haya reservas confirmadas, vas a poder registrar el ingreso desde acá."
-                  />
-                )}
-              </div>
-            </section>
-
-            <section className={`garagista-section garagista-mobile-panel ${seccionMovil === "dentro" ? "is-active" : ""}`}>
-              <div className="garagista-section-heading">
-                <div>
-                  <span>Ocupacion actual</span>
-                  <h2>Autos dentro</h2>
-                </div>
-                <strong>{autosDentro.length}</strong>
-              </div>
-
-              <div className="garagista-card-list">
-                {autosDentro.length > 0 ? (
-                  autosDentro.map((reserva) => (
-                    <article className="access-card access-card--inside" key={reserva.id}>
-                      <div className="access-card__top">
-                        <div>
-                          <h3>{reserva.conductor}</h3>
-                          <p>{reserva.vehiculo}</p>
-                        </div>
-                        <BadgeEstado estado={reserva.estado} />
-                      </div>
-
-                      <dl className={`access-card__meta ${reserva.horaEntrada ? "" : "access-card__meta--single"}`}>
-                        {reserva.horaEntrada ? (
-                          <div>
-                            <dt>Hora de entrada</dt>
-                            <dd>
-                              <DoorOpen size={15} />
-                              {reserva.horaEntrada}
-                            </dd>
-                          </div>
-                        ) : null}
-                        <div>
-                          <dt>Salida prevista</dt>
-                          <dd>
-                            <Clock3 size={15} />
-                            {reserva.horaSalidaPrevista}
-                          </dd>
-                        </div>
-                      </dl>
-
-                      {!esAdmin ? (
-                        <div className="access-card__actions">
-                          <button
-                            className="garagista-primary-btn"
-                            type="button"
-                            onClick={() => setLectorQrAbierto("salida")}
-                            disabled={guardandoAccion}
-                          >
-                            <QrCode size={17} />
-                            Escanear QR
-                          </button>
-                          <button
-                            className="garagista-secondary-btn"
-                            type="button"
-                            onClick={() => abrirVerificacionSalida(reserva)}
-                            disabled={guardandoAccion}
-                            aria-label={`Registrar salida de ${reserva.conductor} con patente manual`}
-                          >
-                            <CheckCircle2 size={17} />
-                            Patente manual
-                          </button>
-                        </div>
-                      ) : null}
-                    </article>
-                  ))
-                ) : (
-                  <EmptyState
-                    icon={CarFront}
-                    title={terminoBusqueda ? "No hay autos dentro con este filtro." : "No hay autos dentro ahora."}
-                    description={terminoBusqueda ? "Probá con otro término o quitá el filtro aplicado." : "Los vehículos que ingresen van a aparecer acá."}
-                    action={terminoBusqueda ? { label: "Limpiar filtro", variant: "secondary", onClick: () => setBusqueda("") } : (!esAdmin ? { label: "Escanear QR", icon: QrCode, onClick: () => setLectorQrAbierto("ingreso") } : undefined)}
-                  />
-                )}
-              </div>
-            </section>
-          </div>
-
-          <section className="garagista-section garagista-section--movements">
-            <div className="garagista-section-heading">
-              <div>
-                <span>Actividad reciente</span>
-                <h2>Últimos movimientos</h2>
-              </div>
-              <strong>{movimientosFinalizados.length}</strong>
-            </div>
-
-            <div className="movements-list">
-              {movimientosFinalizados.length > 0 ? (
-                movimientosFinalizados.map((reserva) => (
-                  <article className="movement-row" key={reserva.id}>
-                    <div>
-                      <h3>{reserva.conductor}</h3>
-                      <p>{reserva.vehiculo}</p>
-                    </div>
-                    <BadgeEstado estado={reserva.estado} />
-                    {reserva.horaEntrada ? <span>Entrada {reserva.horaEntrada}</span> : null}
-                    {reserva.horaSalida ? (
-                      <span>Salida real {reserva.horaSalida}</span>
-                    ) : reserva.estado === "Sin registro" ? (
-                      <span>Salida prevista {reserva.horaSalidaPrevista}</span>
-                    ) : null}
-                  </article>
-                ))
-              ) : (
-                <EmptyState
-                  icon={Clock3}
-                  title="Todavía no hay movimientos finalizados."
-                  description="Los ingresos y salidas registrados van a aparecer en esta lista."
-                />
-              )}
-            </div>
-          </section>
-          </>
+            <>
+              <GaragistaPaneles
+                esAdmin={esAdmin}
+                seccionMovil={seccionMovil}
+                onSeccionChange={setSeccionMovil}
+                reservasPendientes={reservasPendientes}
+                autosDentro={autosDentro}
+                guardandoAccion={guardandoAccion}
+                terminoBusqueda={terminoBusqueda}
+                onEscanearIngreso={() => setLectorQrAbierto("ingreso")}
+                onEscanearSalida={() => setLectorQrAbierto("salida")}
+                abrirVerificacion={abrirVerificacion}
+                abrirVerificacionSalida={abrirVerificacionSalida}
+                onLimpiarFiltro={() => setBusqueda("")}
+              />
+              <GaragistaMovimientos movimientosFinalizados={movimientosFinalizados} />
+            </>
           )}
         </div>
       </main>
@@ -1121,97 +435,21 @@ export default function GaragistaDashboard() {
       {esAdmin ? <FooterAdmin /> : null}
 
       {!esAdmin && reservaSeleccionada ? (
-        <ModalPortal onClose={cerrarVerificacion} overlayClassName="garagista-modal-overlay">
-          <form className="garagista-modal" onSubmit={verificarPatente} onClick={(e) => e.stopPropagation()}>
-            <div className="garagista-modal__header">
-              <div>
-                <h2>{patenteVerificada ? "Confirmar vehículo" : `Verificar ${tipoVerificacion}`}</h2>
-                <p>
-                  {patenteVerificada
-                    ? tipoVerificacion === "salida"
-                      ? "Patente verificada"
-                      : "Revisá los datos antes de registrar el ingreso."
-                    : `Ingresá la patente completa para validar ${tipoVerificacion === "salida" ? "la salida" : "el acceso"}.`}
-                </p>
-              </div>
-              <button
-                className="garagista-modal__close"
-                type="button"
-                onClick={cerrarVerificacion}
-                aria-label="Cerrar modal"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {patenteVerificada ? (
-              <div className="garagista-vehicle-confirmation" role="status">
-                <span className="garagista-vehicle-confirmation__icon">
-                  <CarFront size={25} />
-                </span>
-                <div>
-                  <span>{tipoVerificacion === "salida" ? "Patente verificada" : "El vehículo que ingresará es"}</span>
-                  <strong>{reservaSeleccionada.vehiculo}</strong>
-                  {tipoVerificacion === "ingreso" ? <small>Patente {reservaSeleccionada.patenteInterna}</small> : null}
-                </div>
-              </div>
-            ) : (
-              <>
-                {tipoVerificacion === "salida" ? (
-                  <div className="garagista-vehicle-confirmation">
-                    <span className="garagista-vehicle-confirmation__icon">
-                      <CarFront size={25} />
-                    </span>
-                    <div>
-                      <span>Vehículo dentro</span>
-                      <strong>{reservaSeleccionada.vehiculo}</strong>
-                      <small>{reservaSeleccionada.conductor}</small>
-                    </div>
-                  </div>
-                ) : null}
-                <label className="garagista-modal__field">
-                  <span>Patente</span>
-                  <input
-                    autoFocus
-                    type="text"
-                    placeholder="Ej: AB123CD"
-                    value={patenteIngresada}
-                    autoComplete="off"
-                    spellCheck="false"
-                    onChange={(event) => {
-                      setPatenteIngresada(event.target.value);
-                      setErrorVerificacion("");
-                    }}
-                  />
-                </label>
-              </>
-            )}
-
-            {errorVerificacion ? (
-              <p className="garagista-modal__error" role="alert">
-                {errorVerificacion}
-              </p>
-            ) : null}
-
-            <div className="garagista-modal__actions">
-              <button className="garagista-cancel-btn" type="button" onClick={cerrarVerificacion} disabled={guardandoAccion}>
-                Cancelar
-              </button>
-              <button
-                className="garagista-primary-btn"
-                type={patenteVerificada ? "button" : "submit"}
-                onClick={patenteVerificada ? (tipoVerificacion === "salida" ? confirmarSalida : confirmarAcceso) : undefined}
-                disabled={guardandoAccion}
-              >
-                {guardandoAccion
-                  ? "Guardando..."
-                  : patenteVerificada
-                    ? tipoVerificacion === "salida" ? "Confirmar salida" : "Confirmar"
-                    : "Verificar patente"}
-              </button>
-            </div>
-          </form>
-        </ModalPortal>
+        <ModalVerificacionAcceso
+          reserva={reservaSeleccionada}
+          tipoVerificacion={tipoVerificacion}
+          patenteIngresada={patenteIngresada}
+          errorVerificacion={errorVerificacion}
+          patenteVerificada={patenteVerificada}
+          guardandoAccion={guardandoAccion}
+          onClose={cerrarVerificacion}
+          onSubmit={verificarPatente}
+          onPatenteChange={(value) => {
+            setPatenteIngresada(value);
+            setErrorVerificacion("");
+          }}
+          onConfirmar={tipoVerificacion === "salida" ? confirmarSalida : confirmarAcceso}
+        />
       ) : null}
       {lectorQrAbierto && !esAdmin ? (
         <LectorQrReserva
