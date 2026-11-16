@@ -1,13 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import "./agregar_sede.css";
 import HeaderSuperadmin from "../componentesSuperadmin/header_superadmin";
-import { SedesCreate } from "../servicies/API_Sede";
 import { EmpresasGetAll } from "../servicies/API_Empresa";
-import useLiveValidation from "../hooks/useLiveValidation";
 import { SEDE_NOMBRE_VALIDATION } from "../helpers/validation";
 import FormularioSede from "../components/FormularioSede";
+import useFormularioSede from "../hooks/useFormularioSede";
 
 const validationSchema = {
   idEmpresa: [
@@ -51,69 +50,53 @@ function AgregarSede() {
   const navigate = useNavigate();
   const location = useLocation();
   const [empresas, setEmpresas] = useState([]);
-  const [formData, setFormData] = useState({
-    idEmpresa: location.state?.empresaId ? String(location.state.empresaId) : "",
-    nombre: "",
-    descripcion: "",
-    ubicacion: "",
+
+  const {
+    formData,
+    setFormData,
+    field,
+    touched,
+    setCoordenadas,
+    cargandoEmpresa,
+    error,
+    loading,
+    onGuardar,
+    onCancelar,
+    onVolver,
+  } = useFormularioSede({
+    validationSchema,
+    initialFormData: {
+      idEmpresa: location.state?.empresaId ? String(location.state.empresaId) : "",
+      nombre: "",
+      descripcion: "",
+      ubicacion: "",
+    },
+    cargarEmpresa: async () => {
+      const res = await EmpresasGetAll();
+      return res.respuesta ? obtenerListado(res.datos) : null;
+    },
+    procesarEmpresa: (lista) => setEmpresas(lista),
+    dependenciasCargaEmpresa: [],
+    obtenerIdEmpresa: ({ formData }) => Number(formData.idEmpresa),
+    alGuardar: ({ formData }) => navigate("/superadmin/gestion_empresas", {
+      replace: true,
+      state: { empresaId: Number(formData.idEmpresa) },
+    }),
+    alCancelar: ({ formData }) => navigate("/superadmin/gestion_empresas", {
+      replace: true,
+      state: { empresaId: Number(formData.idEmpresa) || undefined },
+    }),
+    alVolver: ({ formData }) => navigate("/superadmin/gestion_empresas", {
+      state: { empresaId: Number(formData.idEmpresa) || undefined },
+    }),
   });
-  const [coordenadas, setCoordenadas] = useState({ lat: null, lng: null, direccion: '' });
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [loadingEmpresas, setLoadingEmpresas] = useState(true);
-
-  const { isValid, touched, getFieldProps } = useLiveValidation(formData, validationSchema);
-  const field = (name) => getFieldProps(name, setFormData);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const fetchEmpresas = async () => {
-      setLoadingEmpresas(true);
-      try {
-        const res = await EmpresasGetAll();
-        if (!mounted) return;
-        if (res.respuesta) {
-          setEmpresas(obtenerListado(res.datos));
-        }
-      } finally {
-        if (mounted) setLoadingEmpresas(false);
-      }
-    };
-    fetchEmpresas();
-    return () => { mounted = false; };
-  }, []);
-
-  const handleGuardar = async () => {
-    setError("");
-
-    if (!isValid) return;
-
-    setLoading(true);
-
-    const response = await SedesCreate({
-      id_empresa: Number(formData.idEmpresa),
-      nombre: formData.nombre.trim(),
-      descripcion: formData.descripcion.trim(),
-      ubicacion: formData.ubicacion.trim(),
-      latitud: coordenadas.lat,
-      longitud: coordenadas.lng,
-    });
-
-    if (response.respuesta) {
-      navigate("/superadmin/gestion_empresas", { replace: true, state: { empresaId: Number(formData.idEmpresa) } });
-    } else {
-      setLoading(false);
-      setError(response.datos?.message || "Error al crear la sede.");
-    }
-  };
 
   return (
     <div className="agregar-sede-page">
       <HeaderSuperadmin />
       <main className="agregar-sede-main">
         <div className="agregar-sede-top">
-          <button className="boton-back" onClick={() => navigate("/superadmin/gestion_empresas", { state: { empresaId: Number(formData.idEmpresa) || undefined } })}>
+          <button className="boton-back" onClick={onVolver}>
             <ArrowLeft size={20} />
           </button>
           <div>
@@ -122,7 +105,7 @@ function AgregarSede() {
           </div>
         </div>
 
-        {loadingEmpresas ? (
+        {cargandoEmpresa ? (
           <AgregarSedeSkeleton />
         ) : (
           <FormularioSede
@@ -145,8 +128,8 @@ function AgregarSede() {
               </div>
             )}
             onCoordenadasChange={setCoordenadas}
-            onGuardar={handleGuardar}
-            onCancelar={() => navigate("/superadmin/gestion_empresas", { replace: true, state: { empresaId: Number(formData.idEmpresa) || undefined } })}
+            onGuardar={onGuardar}
+            onCancelar={onCancelar}
             loading={loading}
             error={error}
             classNames={CLASES_FORMULARIO}

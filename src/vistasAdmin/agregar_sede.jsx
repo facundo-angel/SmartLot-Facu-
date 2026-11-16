@@ -1,14 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import "./agregar_sede.css";
 import Header from "../componentesAdmin/header_admin";
-import { SedesCreate } from "../servicies/API_Sede";
 import { EmpresasGetById } from "../servicies/API_Empresa";
-import useLiveValidation from "../hooks/useLiveValidation";
 import { SEDE_NOMBRE_VALIDATION } from "../helpers/validation";
 import { useAuth } from "../contexts/useAuth";
 import FormularioSede from "../components/FormularioSede";
+import useFormularioSede from "../hooks/useFormularioSede";
 
 const validationSchema = SEDE_NOMBRE_VALIDATION;
 
@@ -40,75 +39,46 @@ function AgregarSedeAdmin() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
   const [empresaNombre, setEmpresaNombre] = useState("");
-  const [loadingEmpresa, setLoadingEmpresa] = useState(true);
-  const [formData, setFormData] = useState({
-    nombre: "",
-    descripcion: "",
-    ubicacion: "",
+
+  const {
+    formData,
+    setFormData,
+    field,
+    touched,
+    setCoordenadas,
+    cargandoEmpresa,
+    error,
+    loading,
+    onGuardar,
+    onCancelar,
+    onVolver,
+  } = useFormularioSede({
+    validationSchema,
+    initialFormData: { nombre: "", descripcion: "", ubicacion: "" },
+    cargarEmpresa: async () => {
+      if (!usuario?.id_empresa) return null;
+      const res = await EmpresasGetById(Number(usuario.id_empresa));
+      return res.respuesta ? res.datos : null;
+    },
+    procesarEmpresa: (datos) => {
+      const emp = Array.isArray(datos) ? datos[0] : datos;
+      setEmpresaNombre(emp?.nombre || "");
+    },
+    dependenciasCargaEmpresa: [usuario?.id_empresa],
+    validarAntesDeGuardar: () =>
+      usuario?.id_empresa ? null : "Tu usuario no tiene una empresa asociada.",
+    obtenerIdEmpresa: () => Number(usuario.id_empresa),
+    alGuardar: () => navigate("/gestion_sedes", { replace: true }),
+    alCancelar: () => navigate("/gestion_sedes", { replace: true }),
+    alVolver: () => navigate("/gestion_sedes"),
   });
-  const [coordenadas, setCoordenadas] = useState({ lat: null, lng: null, direccion: "" });
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const { isValid, touched, getFieldProps } = useLiveValidation(formData, validationSchema);
-  const field = (name) => getFieldProps(name, setFormData);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const fetchEmpresa = async () => {
-      setLoadingEmpresa(true);
-      try {
-        if (!usuario?.id_empresa) return;
-        const res = await EmpresasGetById(Number(usuario.id_empresa));
-        if (!mounted) return;
-        if (res.respuesta) {
-          const emp = Array.isArray(res.datos) ? res.datos[0] : res.datos;
-          setEmpresaNombre(emp?.nombre || "");
-        }
-      } finally {
-        if (mounted) setLoadingEmpresa(false);
-      }
-    };
-
-    fetchEmpresa();
-    return () => { mounted = false; };
-  }, [usuario?.id_empresa]);
-
-  const handleGuardar = async () => {
-    setError("");
-
-    if (!isValid) return;
-    if (!usuario?.id_empresa) {
-      setError("Tu usuario no tiene una empresa asociada.");
-      return;
-    }
-
-    setLoading(true);
-
-    const response = await SedesCreate({
-      id_empresa: Number(usuario.id_empresa),
-      nombre: formData.nombre.trim(),
-      descripcion: formData.descripcion.trim(),
-      ubicacion: formData.ubicacion.trim(),
-      latitud: coordenadas.lat,
-      longitud: coordenadas.lng,
-    });
-
-    if (response.respuesta) {
-      navigate("/gestion_sedes", { replace: true });
-    } else {
-      setLoading(false);
-      setError(response.datos?.message || "Error al crear la sede.");
-    }
-  };
 
   return (
     <div className="agregar-sede-admin">
       <Header />
       <main className="agregar-sede-admin-main">
         <div className="agregar-sede-admin-top">
-          <button className="boton-back-agregar" onClick={() => navigate("/gestion_sedes")} aria-label="Volver a gestión de sedes">
+          <button className="boton-back-agregar" onClick={onVolver} aria-label="Volver a gestión de sedes">
             <ArrowLeft size={20} />
           </button>
           <div>
@@ -117,7 +87,7 @@ function AgregarSedeAdmin() {
           </div>
         </div>
 
-        {loadingEmpresa ? (
+        {cargandoEmpresa ? (
           <AgregarSedeAdminSkeleton />
         ) : (
           <FormularioSede
@@ -133,8 +103,8 @@ function AgregarSedeAdmin() {
               </div>
             )}
             onCoordenadasChange={setCoordenadas}
-            onGuardar={handleGuardar}
-            onCancelar={() => navigate("/gestion_sedes", { replace: true })}
+            onGuardar={onGuardar}
+            onCancelar={onCancelar}
             loading={loading}
             error={error}
             classNames={CLASES_FORMULARIO}

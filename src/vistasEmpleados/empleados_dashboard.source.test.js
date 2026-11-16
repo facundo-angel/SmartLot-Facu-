@@ -4,19 +4,32 @@ import { readFile } from "node:fs/promises";
 
 const dashboardPath = new URL("./empleados_dashboard.jsx", import.meta.url);
 const modalReportePath = new URL("../componentesEmpleado/modal_reporte_empleado.jsx", import.meta.url);
-const [source, modalReporteSource] = await Promise.all([
+
+const sourcePaths = [
+  dashboardPath,
+  new URL("../componentesEmpleado/empleado_dashboard_helpers.js", import.meta.url),
+  modalReportePath,
+];
+
+const leerFuentes = async () => {
+  const textos = await Promise.all(sourcePaths.map((path) => readFile(path, "utf8")));
+  return textos.join("\n");
+};
+
+const [source, modalReporteSource, fuentes] = await Promise.all([
   readFile(dashboardPath, "utf8"),
   readFile(modalReportePath, "utf8"),
+  leerFuentes(),
 ]);
 
-const entre = (inicio, fin) => {
-  const start = source.indexOf(inicio);
+const entre = (inicio, fin, texto = source) => {
+  const start = texto.indexOf(inicio);
   assert.notEqual(start, -1, `No se encontro el bloque de inicio: ${inicio}`);
 
-  const end = source.indexOf(fin, start + inicio.length);
+  const end = texto.indexOf(fin, start + inicio.length);
   assert.notEqual(end, -1, `No se encontro el bloque de cierre: ${fin}`);
 
-  return source.slice(start, end);
+  return texto.slice(start, end);
 };
 
 test("el refresco de reservas usa createReservaRefresh y bindReservaPolling", () => {
@@ -92,8 +105,9 @@ test("mantiene el filtro de canceladas, expiradas y salidas registradas", () => 
 
 test("normaliza reservas con los aliases de vehiculo, garage, ubicacion y estado", () => {
   const normalizador = entre(
-    "const normalizarReserva =",
-    "const EmpleadoDisponibilidadSkeleton"
+    "export const normalizarReserva =",
+    "export const indexarPorId",
+    fuentes
   );
 
   assert.match(
@@ -126,7 +140,7 @@ test("normaliza reservas con los aliases de vehiculo, garage, ubicacion y estado
 });
 
 test("obtenerCampo conserva la busqueda anidada y sin distinguir mayusculas", () => {
-  const obtenerCampo = entre("const obtenerCampo =", "const esValorVerdadero");
+  const obtenerCampo = entre("export const obtenerCampo =", "export const esValorVerdadero", fuentes);
 
   assert.match(obtenerCampo, /item\?\.reserva/);
   assert.match(obtenerCampo, /item\?\.datos/);
@@ -171,7 +185,7 @@ test("el reporte del empleado envia solo id_usuario, descripcion y prioridad", (
 });
 
 test("valida descripcion vacia, limite de 300 palabras e identificacion del usuario", () => {
-  assert.match(source, /const MAX_PALABRAS = 300;/);
+  assert.match(fuentes, /const MAX_PALABRAS = 300;/);
 
   const handler = entre(
     "const handleEnviarReporte",

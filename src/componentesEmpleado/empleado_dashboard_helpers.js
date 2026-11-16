@@ -1,4 +1,4 @@
-import { normalizeReservaDateTime, formatReservaDate, formatReservaMonth, formatReservaHorario } from "../helpers/reservaDateTime";
+import { normalizeReservaDateTime, formatReservaDate, formatReservaMonth, formatReservaHorario } from "../helpers/reservaDateTime.js";
 
 export const MAX_PALABRAS = 300;
 export const contarPalabras = (texto) => (texto || "").trim().split(/\s+/).filter(Boolean).length;
