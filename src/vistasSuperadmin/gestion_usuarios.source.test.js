@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const [
   source,
+  hookSource,
   css,
   apiUsuario,
   apiSolicitudes,
@@ -13,6 +14,7 @@ const [
   constantes,
 ] = await Promise.all([
   readFile(new URL("./gestion_usuarios.jsx", import.meta.url), "utf8"),
+  readFile(new URL("../hooks/useGestionUsuariosData.js", import.meta.url), "utf8"),
   readFile(new URL("./gestion_usuarios.css", import.meta.url), "utf8"),
   readFile(new URL("../servicies/API_Usuario.js", import.meta.url), "utf8"),
   readFile(new URL("../servicies/API_SolicitudRegistro.js", import.meta.url), "utf8"),
@@ -33,7 +35,7 @@ const entre = (inicio, fin, texto = source) => {
 };
 
 test("la carga inicial pide seis recursos y conserva el patron mounted", () => {
-  const carga = entre("const loadData = async () => {", "    loadData();");
+  const carga = entre("const loadData = async () => {", "    loadData();", hookSource);
 
   assert.match(
     carga,
@@ -49,7 +51,7 @@ test("la carga inicial pide seis recursos y conserva el patron mounted", () => {
   assert.match(carga, /setLoading\(true\);/);
   assert.match(carga, /setLoadingAuditoria\(true\);/);
   assert.match(carga, /if \(!mounted\) return;/);
-  assert.match(source, /return \(\) => \{ mounted = false; \};/);
+  assert.match(hookSource, /return \(\) => \{ mounted = false; \};/);
   assert.match(carga, /if \(!usuRes\.respuesta\)/);
   assert.match(carga, /setError\("No se pudieron cargar los usuarios\."\)/);
   assert.match(carga, /setLoading\(false\);/);
@@ -60,17 +62,20 @@ test("la carga inicial pide seis recursos y conserva el patron mounted", () => {
 });
 
 test("los datos crudos se convierten en mapas y usuarios normalizados", () => {
-  const carga = entre("const loadData = async () => {", "    loadData();");
+  const carga = entre("const loadData = async () => {", "    loadData();", hookSource);
+  const empresaMap = entre("export const construirEmpresaMap", "export const construirSedeMap", hookSource);
+  const sedeMap = entre("export const construirSedeMap", "export const construirGarageMap", hookSource);
+  const garageMap = entre("export const construirGarageMap", "export default", hookSource);
 
   assert.match(carga, /const usuariosRaw = obtenerListado\(usuRes\.datos\)/);
   assert.match(carga, /const empresas = empRes\.respuesta \? obtenerListado\(empRes\.datos\) : \[\]/);
   assert.match(carga, /const sedes = sedRes\.respuesta \? obtenerListado\(sedRes\.datos\) : \[\]/);
   assert.match(carga, /const garages = garRes\.respuesta \? obtenerListado\(garRes\.datos\) : \[\]/);
-  assert.match(carga, /Object\.fromEntries\(empresas\.map\(\(e\) => \[Number\(e\.id\), e\.nombre\]\)\)/);
-  assert.match(carga, /Object\.fromEntries\(sedes\.map\(\(s\) => \[Number\(s\.id\), s\.nombre\]\)\)/);
-  assert.match(carga, /const id = g\.id_garage \?\? g\.id \?\? g\._id;/);
+  assert.match(empresaMap, /Object\.fromEntries\(empresas\.map\(\(e\) => \[Number\(e\.id\), e\.nombre\]\)\)/);
+  assert.match(sedeMap, /Object\.fromEntries\(sedes\.map\(\(s\) => \[Number\(s\.id\), s\.nombre\]\)\)/);
+  assert.match(garageMap, /const id = g\.id_garage \?\? g\.id \?\? g\._id;/);
   assert.match(
-    carga,
+    garageMap,
     /g\.nombre \|\| g\.name \|\| g\.descripcion \|\| g\.ubicacion \|\| g\.nombre_garage \|\| g\.garage_nombre \|\| "Garage"/
   );
   assert.match(
@@ -82,7 +87,7 @@ test("los datos crudos se convierten en mapas y usuarios normalizados", () => {
 });
 
 test("las tres recargas usan force y reutilizan los mapas actuales", () => {
-  const recargas = entre("const recargarAuditoria = async () => {", "  useEffect(() => {");
+  const recargas = entre("const recargarAuditoria = async () => {", "  useEffect(() => {", hookSource);
 
   assert.match(recargas, /const auditRes = await UsuariosGetAuditoria\(\)/);
   assert.match(recargas, /setLoadingAuditoria\(true\)/);

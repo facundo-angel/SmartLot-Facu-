@@ -9,6 +9,7 @@ const toggle = await readFile(new URL('../componentesLanding/auth/RegisterRoleTo
 const panel = await readFile(new URL('../componentesLanding/auth/RegisterBrandPanel.jsx', import.meta.url), 'utf8');
 const app = await readFile(new URL('../App.jsx', import.meta.url), 'utf8');
 const gestion = await readFile(new URL('../vistasSuperadmin/gestion_usuarios.jsx', import.meta.url), 'utf8');
+const gestionData = await readFile(new URL('../hooks/useGestionUsuariosData.js', import.meta.url), 'utf8');
 
 test('la ruta /register usa la página nueva y redirige con sesión activa', () => {
   assert.match(app, /path="\/register"[\s\S]*<Register/);
@@ -61,7 +62,7 @@ test('ambos formularios exigen política fuerte, confirmación y cooldown 429', 
 });
 
 test('la bandeja vive en gestión de usuarios con aprobar y rechazar', () => {
-  assert.match(gestion, /SolicitudesRegistroGetAll/);
+  assert.match(gestionData, /SolicitudesRegistroGetAll/);
   assert.match(gestion, /SolicitudesRegistroAprobar/);
   assert.match(gestion, /SolicitudesRegistroRechazar/);
   assert.match(gestion, /setShowSolicitudes\(true\)/);
